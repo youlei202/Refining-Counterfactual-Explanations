@@ -417,3 +417,20 @@ class DistributionalCounterfactualExplainer:
 
             # Scale eta to be within the range [l, r]
             return l + eta_proportion * (r - l)
+
+    def get_nu(self):
+        return self.wd.nu.detach().numpy()
+    
+    def get_mu(self, method='avg'):
+
+        if method == 'avg':
+            mu_avg = torch.zeros_like(self.swd.mu_list[0])
+            for mu in self.swd.mu_list:
+                mu_avg += mu
+
+            total_sum = mu_avg.sum()
+
+            matrix_mu = mu_avg / total_sum
+            return matrix_mu
+        else:
+            raise NotImplementedError

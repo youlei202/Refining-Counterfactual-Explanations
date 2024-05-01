@@ -17,7 +17,7 @@ class WeightedExplainer:
         """
         self.model = model
 
-    def explain_instance(self, x, X_baseline, weights, num_samples=100):
+    def explain_instance(self, x, X_baseline, weights, num_samples=5):
         """
         Generates SHAP values for a single instance using a weighted sample of baseline data.
 
@@ -30,10 +30,11 @@ class WeightedExplainer:
         :return: An array of SHAP values for the instance.
         """
         # Normalize weights to ensure they sum to 1
-        weights = weights / (weights.sum() + 1e-15)
+        weights = weights / (weights.sum())
 
         # Generate samples weighted by joint probabilities
         indices = np.random.choice(X_baseline.shape[0], size=num_samples, p=weights, replace=True)
+        indices = np.unique(indices)
         sampled_X_baseline = X_baseline[indices]
 
         # Use the sampled_X_baseline as the background data for this specific explanation
