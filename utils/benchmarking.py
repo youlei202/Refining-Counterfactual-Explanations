@@ -6,13 +6,12 @@ from scipy.stats import gaussian_kde, entropy
 from numpy.linalg import LinAlgError
 
 
-
-def get_ot_plan(mu_list, method='max'):
+def get_ot_plan(mu_list, method="max"):
     mu_sum = torch.zeros_like(mu_list[0])
     for mu in mu_list:
         mu_sum += mu
 
-    if method == 'max':
+    if method == "max":
         # Initialize a tensor to store the maximum values, with the same shape and zeros
         mu_max = torch.zeros_like(mu_sum)
 
@@ -20,43 +19,46 @@ def get_ot_plan(mu_list, method='max'):
         _, max_indices = torch.max(mu_sum, dim=1, keepdim=True)
 
         # Use the indices to place the maximum values in the 'max_only' tensor
-        mu_max.scatter_(dim=1, index=max_indices, src=mu_sum.gather(dim=1, index=max_indices))
+        mu_max.scatter_(
+            dim=1, index=max_indices, src=mu_sum.gather(dim=1, index=max_indices)
+        )
 
         total_sum = mu_max.sum()
         matrix_mu = mu_max / total_sum
 
-    elif method == 'avg':
+    elif method == "avg":
         total_sum = mu_sum.sum()
         matrix_mu = mu_sum / total_sum
-        
+
     return matrix_mu
+
 
 def get_ranked_features(shap_values, columns):
     # Get the mean absolute SHAP values for each feature
     shap_sum = np.abs(shap_values).mean(axis=0)
     importance_df = pd.DataFrame([columns, shap_sum.tolist()]).T
-    importance_df.columns = ['feature', 'shap_importance']
-    importance_df = importance_df.sort_values('shap_importance', ascending=False)
+    importance_df.columns = ["feature", "shap_importance"]
+    importance_df = importance_df.sort_values("shap_importance", ascending=False)
 
-    sorted_features = importance_df['feature'].to_list()
+    sorted_features = importance_df["feature"].to_list()
     return sorted_features
 
+
 def accuracy_performance_benchmark(
-        model,
-        X_train,
-        X_test, 
-        y_test,
-        baseline_drop_columns,
-        jp_drop_columns
-    ):
+    model, X_train, X_test, y_test, baseline_drop_columns, jp_drop_columns
+):
     X_test_baseline = X_test.copy()
     X_test_jp = X_test.copy()
     min_val = X_train.min()
     max_val = X_train.max()
     for col in baseline_drop_columns:
-        X_test_baseline[col] = np.random.uniform(min_val[col], max_val[col], size=len(X_test_baseline))
+        X_test_baseline[col] = np.random.uniform(
+            min_val[col], max_val[col], size=len(X_test_baseline)
+        )
     for col in jp_drop_columns:
-        X_test_jp[col] = np.random.uniform(min_val[col], max_val[col], size=len(X_test_jp))
+        X_test_jp[col] = np.random.uniform(
+            min_val[col], max_val[col], size=len(X_test_jp)
+        )
 
     X_test_baseline_tensor = torch.FloatTensor(X_test_baseline.values)
     X_test_jp_tensor = torch.FloatTensor(X_test_jp.values)
@@ -78,8 +80,8 @@ def accuracy_performance_benchmark(
 
         accuracies.append(accuracy.item())
 
-    results['Baseline acc'] = accuracies[0]
-    results['JointProb acc'] = accuracies[1]
+    results["Baseline acc"] = accuracies[0]
+    results["JointProb acc"] = accuracies[1]
 
     return results
 
@@ -98,9 +100,11 @@ def compute_kl_divergence(y_s, y_t):
 
     return kl_div
 
+
 def gaussian_kernel(x, y, sigma=1.0):
     """Compute the Gaussian kernel between x and y"""
-    return np.exp(-np.linalg.norm(x - y) ** 2 / (2 * sigma ** 2))
+    return np.exp(-np.linalg.norm(x - y) ** 2 / (2 * sigma**2))
+
 
 def compute_mmd(y_s, y_t, kernel=gaussian_kernel):
     n = y_s.shape[0]
@@ -110,17 +114,17 @@ def compute_mmd(y_s, y_t, kernel=gaussian_kernel):
     tt = np.sum([kernel(y_t[i], y_t[j]) for i in range(m) for j in range(m)])
     st = np.sum([kernel(y_s[i], y_t[j]) for i in range(n) for j in range(m)])
 
-    return ss / (n**2) + tt / (m**2) - 2 * st / (n*m)
+    return ss / (n**2) + tt / (m**2) - 2 * st / (n * m)
 
 
 def counterfactual_distance_performance_benchmarking(
-        model,
-        df_baseline,
-        df_explain,
-        y_baseline,
-        baseline_change_columns,
-        jp_change_columns,
-        delta=0.05,
+    model,
+    df_baseline,
+    df_explain,
+    y_baseline,
+    baseline_change_columns,
+    jp_change_columns,
+    delta=0.05,
 ):
     X_explain_bs = df_explain.copy()
     X_explain_jp = df_explain.copy()
@@ -145,41 +149,43 @@ def counterfactual_distance_performance_benchmarking(
         model.eval()
         with torch.no_grad():
             y_explain_tensor = torch.FloatTensor(model.predict_proba(X_explain_tensor))
-            ot, _ = WassersteinDivergence().distance(y_explain_tensor, y_baseline_tensor, delta=delta)
+            ot, _ = WassersteinDivergence().distance(
+                y_explain_tensor, y_baseline_tensor, delta=delta
+            )
             kl = compute_kl_divergence(
-                y_explain_tensor.detach().numpy(), 
+                y_explain_tensor.detach().numpy(),
                 y_baseline_tensor.detach().numpy(),
             )
             mmd = compute_mmd(
-                y_explain_tensor.detach().numpy(), 
+                y_explain_tensor.detach().numpy(),
                 y_baseline_tensor.detach().numpy(),
             )
 
             ot_list.append(ot)
-            kl_list.append(kl)            
+            kl_list.append(kl)
             mmd_list.append(mmd)
 
-    results['OT_bs'] = ot_list[0]
-    results['OT_jp'] = ot_list[1]
+    results["OT_bs"] = ot_list[0]
+    results["OT_jp"] = ot_list[1]
 
-    results['KL_bs'] = kl_list[0]
-    results['KL_jp'] = kl_list[1]
+    results["KL_bs"] = kl_list[0]
+    results["KL_jp"] = kl_list[1]
 
-    results['MMD_bs'] = mmd_list[0]
-    results['MMD_jp'] = mmd_list[1]
+    results["MMD_bs"] = mmd_list[0]
+    results["MMD_jp"] = mmd_list[1]
 
     return results
 
 
 def counterfactual_ability_performance_benchmarking(
-        model,
-        df_explain,
-        df_baseline,
-        y_baseline,
-        shap_values_baseline,
-        shap_values_jp,
-        num_pairs,
-        delta=0.05,
+    model,
+    df_explain,
+    df_baseline,
+    y_baseline,
+    shap_values_baseline,
+    shap_values_jp,
+    num_pairs,
+    delta=0.05,
 ):
 
     y_baseline_tensor = torch.FloatTensor(y_baseline)
@@ -195,7 +201,9 @@ def counterfactual_ability_performance_benchmarking(
 
     for P in [P_bs, P_jp]:
         # Flatten the array to make it easier to sample from
-        flat_indices = np.random.choice(a=P.size, size=num_pairs, p=P.flatten(), replace=True)
+        flat_indices = np.random.choice(
+            a=P.size, size=num_pairs, p=P.flatten(), replace=True
+        )
         flat_indices = np.unique(flat_indices)
 
         # Convert flat indices back to 2D indices
@@ -208,50 +216,51 @@ def counterfactual_ability_performance_benchmarking(
         X_explain[i_indices, j_indices] = values_from_baseline
         X_explain_tensor = torch.FloatTensor(X_explain)
 
-        # Evaluate on test set
-        model.eval()
-        with torch.no_grad():
-            y_explain_tensor = torch.FloatTensor(model.predict_proba(X_explain_tensor))
-            ot, _ = WassersteinDivergence().distance(y_explain_tensor, y_baseline_tensor, delta=delta)
-            kl = compute_kl_divergence(
-                y_explain_tensor.detach().numpy(), 
-                y_baseline_tensor.detach().numpy(),
-            )
-            exp = abs(y_explain_tensor.mean().item() - y_baseline_tensor.mean().item())
-            mmd = compute_mmd(
-                y_explain_tensor.detach().numpy(), 
-                y_baseline_tensor.detach().numpy(),
-            )
+        y_explain_tensor = torch.FloatTensor(
+            model.predict_proba(X_explain_tensor)[:, 0]
+        )
+        ot, _ = WassersteinDivergence().distance(
+            y_explain_tensor, y_baseline_tensor, delta=delta
+        )
+        kl = compute_kl_divergence(
+            y_explain_tensor.detach().numpy(),
+            y_baseline_tensor.detach().numpy(),
+        )
+        exp = abs(y_explain_tensor.mean().item() - y_baseline_tensor.mean().item())
+        mmd = compute_mmd(
+            y_explain_tensor.detach().numpy(),
+            y_baseline_tensor.detach().numpy(),
+        )
 
-            ot_list.append(ot)
-            kl_list.append(kl)      
-            exp_list.append(exp)      
-            mmd_list.append(mmd)
+        ot_list.append(ot)
+        kl_list.append(kl)
+        exp_list.append(exp)
+        mmd_list.append(mmd)
 
-    results['OT_bs'] = ot_list[0]
-    results['OT_jp'] = ot_list[1]
+    results["OT_bs"] = ot_list[0]
+    results["OT_jp"] = ot_list[1]
 
-    results['KL_bs'] = kl_list[0]
-    results['KL_jp'] = kl_list[1]
+    results["KL_bs"] = kl_list[0]
+    results["KL_jp"] = kl_list[1]
 
-    results['EXP_bs'] = exp_list[0]
-    results['EXP_jp'] = exp_list[1]
+    results["EXP_bs"] = exp_list[0]
+    results["EXP_jp"] = exp_list[1]
 
-    results['MMD_bs'] = mmd_list[0]
-    results['MMD_jp'] = mmd_list[1]
+    results["MMD_bs"] = mmd_list[0]
+    results["MMD_jp"] = mmd_list[1]
 
     return results
 
 
 def counterfactual_target_performance_benchmarking(
-        model,
-        df_explain,
-        df_baseline,
-        y_baseline,
-        shap_values_baseline,
-        shap_values_jp,
-        num_pairs,
-        delta=0.05,
+    model,
+    df_explain,
+    df_baseline,
+    y_baseline,
+    shap_values_baseline,
+    shap_values_jp,
+    num_pairs,
+    delta=0.05,
 ):
 
     y_baseline_tensor = torch.FloatTensor(y_baseline)
@@ -264,7 +273,9 @@ def counterfactual_target_performance_benchmarking(
 
     for P in [P_bs, P_jp]:
         # Flatten the array to make it easier to sample from
-        flat_indices = np.random.choice(a=P.size, size=num_pairs, p=P.flatten(), replace=True)
+        flat_indices = np.random.choice(
+            a=P.size, size=num_pairs, p=P.flatten(), replace=True
+        )
         flat_indices = np.unique(flat_indices)
 
         # Convert flat indices back to 2D indices
@@ -283,17 +294,17 @@ def counterfactual_target_performance_benchmarking(
             y_explain_tensor = torch.FloatTensor(model.predict_proba(X_explain_tensor))
             risk = y_explain_tensor.detach().numpy().mean()
             kl = compute_kl_divergence(
-                y_explain_tensor.detach().numpy(), 
+                y_explain_tensor.detach().numpy(),
                 y_baseline_tensor.detach().numpy(),
             )
             mmd = compute_mmd(
-                y_explain_tensor.detach().numpy(), 
+                y_explain_tensor.detach().numpy(),
                 y_baseline_tensor.detach().numpy(),
             )
 
             risk_list.append(risk)
 
-    results['OT_bs'] = risk_list[0]
-    results['OT_jp'] = risk_list[1]
+    results["OT_bs"] = risk_list[0]
+    results["OT_jp"] = risk_list[1]
 
     return results
