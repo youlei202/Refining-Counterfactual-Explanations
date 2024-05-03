@@ -43,6 +43,14 @@ class RBFNet(nn.Module):
         return out
 
     def predict(self, x):
+        x = torch.FloatTensor(x)
+        return (self(x).reshape(-1) > 0.5).float().detach().numpy()
+
+    def predict_proba(self, x):
+        x = torch.FloatTensor(x)
+        return self(x).reshape(-1).detach().numpy()
+
+    def predict(self, x):
         # Ensure input is a torch.FloatTensor
         if not isinstance(x, torch.FloatTensor):
             x = torch.FloatTensor(x)

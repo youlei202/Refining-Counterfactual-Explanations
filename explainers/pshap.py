@@ -2,11 +2,13 @@ import numpy as np
 import shap
 from copy import deepcopy
 
+
 class WeightedExplainer:
     """
-    This class provides explanations for model predictions using SHAP values, 
+    This class provides explanations for model predictions using SHAP values,
     weighted according to a given probability distribution.
     """
+
     def __init__(self, model):
         """
         Initializes the WeightedExplainer.
@@ -33,12 +35,16 @@ class WeightedExplainer:
         weights = weights / (weights.sum())
 
         # Generate samples weighted by joint probabilities
-        indices = np.random.choice(X_baseline.shape[0], size=num_samples, p=weights, replace=True)
+        indices = np.random.choice(
+            X_baseline.shape[0], size=num_samples, p=weights, replace=True
+        )
         indices = np.unique(indices)
         sampled_X_baseline = X_baseline[indices]
 
         # Use the sampled_X_baseline as the background data for this specific explanation
-        explainer_temp = shap.KernelExplainer(self.model.predict_proba, sampled_X_baseline)
+        explainer_temp = shap.KernelExplainer(
+            self.model.predict_proba, sampled_X_baseline
+        )
         shap_values = explainer_temp.shap_values(x)
 
         return shap_values
@@ -49,6 +55,7 @@ class JointProbabilityExplainer:
     This class provides SHAP explanations for model predictions across multiple instances,
     using joint probability distributions to weight the baseline data for each instance.
     """
+
     def __init__(self, model):
         """
         Initializes the JointProbabilityExplainer.
@@ -70,7 +77,11 @@ class JointProbabilityExplainer:
         :param num_samples: The number of samples to draw from X_baseline for each instance in X.
         :return: A numpy array of SHAP values for each instance in X.
         """
-        return np.array([
-            self.weighted_explainer.explain_instance(x, X_baseline, weights, num_samples)
-            for x, weights in zip(X, joint_probs)
-        ])
+        return np.array(
+            [
+                self.weighted_explainer.explain_instance(
+                    x, X_baseline, weights, num_samples
+                )
+                for x, weights in zip(X, joint_probs)
+            ]
+        )
