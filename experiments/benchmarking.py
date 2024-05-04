@@ -63,11 +63,9 @@ class Benchmarking:
 
     def compute_shapley_values(
         self,
-        X_factual,
         model_counterfactuals,
     ):
         self.shap_values = {}
-        self.X_factual = X_factual
         self.model_counterfactuals = model_counterfactuals
 
         for model, model_name in zip(self.models, self.model_names):
@@ -77,6 +75,7 @@ class Benchmarking:
                 model_name
             ].items():
                 self.shap_values[model_name][algorithm] = {}
+                X_factual = counterfactual_dict["X_factual"]
                 X_counterfactual = counterfactual_dict["X"]
 
                 for shapley_method in self.shapley_methods:
@@ -96,7 +95,7 @@ class Benchmarking:
         return self.shap_values
 
     def evaluate_distance_performance_under_interventions(
-        self, intervention_num_list, trials_num, plotting=False
+        self, intervention_num_list, trials_num
     ):
 
         self.distance_results = {}
@@ -108,6 +107,9 @@ class Benchmarking:
 
             for algorithm, algorithm_dict in model_dict.items():
                 self.distance_results[model_name][algorithm] = {}
+                X_factual = self.model_counterfactuals[model_name][algorithm][
+                    "X_factual"
+                ]
                 X_counterfactual = self.model_counterfactuals[model_name][algorithm][
                     "X"
                 ]
@@ -144,7 +146,7 @@ class Benchmarking:
                                 i_indices, j_indices = np.unravel_index(
                                     intervention_indices, P.shape
                                 )
-                                X_intervention = self.X_factual.copy()
+                                X_intervention = X_factual.copy()
 
                                 if intervention_num > 0:
                                     # Set values at selected 2D indices

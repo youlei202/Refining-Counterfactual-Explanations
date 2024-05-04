@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
-class RBFNet(nn.Module):
+class PyTorchRBFNet(nn.Module):
     def __init__(self, input_dim, hidden_dim):
-        super(RBFNet, self).__init__()
+        super(PyTorchRBFNet, self).__init__()
         self.hidden_dim = hidden_dim
 
         self.name = "rbf"
@@ -58,3 +59,12 @@ class RBFNet(nn.Module):
 
         # Apply your decision threshold
         return (output.reshape(-1) > 0.5).float().numpy()
+
+    def predict_proba(self, x):
+        x = torch.FloatTensor(x)
+        # Forward pass to get output probabilities for class 1
+        probs_class1 = self(x).reshape(-1).detach().numpy()
+        # Calculate probabilities for class 0
+        probs_class0 = 1 - probs_class1
+        # Stack the probabilities for both classes along the last axis
+        return np.vstack((probs_class0, probs_class1)).T

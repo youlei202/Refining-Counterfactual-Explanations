@@ -1,8 +1,8 @@
 mapping = {
-    "independent_X_counterfactual": "Ind_CF",
-    "independent_X_train": "Ind_Train",
-    "joint_probability_X_counterfactual": "Joint_CF",
-    "joint_probability_X_train": "Joint_Train",
+    "independent_X_counterfactual": "CF",
+    "independent_X_train": "Train",
+    "joint_probability_X_counterfactual": "OT_CF",
+    "joint_probability_X_train": "OT_Train",
     "optimal_transport": "OT",
     "kl_divergence": "KL",
     "mean_difference": "MD",

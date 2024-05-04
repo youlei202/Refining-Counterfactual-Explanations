@@ -420,10 +420,10 @@ class DistributionalCounterfactualExplainer:
 
     def get_nu(self):
         return self.wd.nu.detach().numpy()
-    
-    def get_mu(self, method='avg'):
 
-        if method == 'avg':
+    def get_mu(self, method="avg"):
+
+        if method == "avg":
             mu_avg = torch.zeros_like(self.swd.mu_list[0])
             for mu in self.swd.mu_list:
                 mu_avg += mu

@@ -5,7 +5,7 @@ from experiments import labels
 import numpy as np
 
 
-def intervention_vs_distance(experiment, ci_factor=1.96):
+def intervention_vs_distance(experiment, ci_factor=1.96, save_to_file=False):
 
     for model_name, model_dict in experiment.distance_results.items():
         for algorithm, algorithm_dict in model_dict.items():
@@ -45,4 +45,6 @@ def intervention_vs_distance(experiment, ci_factor=1.96):
 
             fig.subplots_adjust(wspace=0.4)
             fig.suptitle(f"{model_name}, {algorithm}")
+            if save_to_file:
+                fig.savefig(f"pictures/distance_{model_name}_{algorithm}")
             fig.show()
