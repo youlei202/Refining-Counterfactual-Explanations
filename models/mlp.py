@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+
 class BlackBoxModel(nn.Module):
     def __init__(self, input_dim, hidden_dim=10):
         super(BlackBoxModel, self).__init__()
@@ -29,20 +30,19 @@ class BlackBoxModel(nn.Module):
     def predict(self, x):
         x = torch.FloatTensor(x)
         return (self(x).reshape(-1) > 0.5).float().detach().numpy()
-    
-    # def predict_proba(self, x):
-    #     x = torch.FloatTensor(x)
-    #     # Forward pass to get output probabilities for class 1
-    #     probs_class1 = self(x).reshape(-1).detach().numpy()
-    #     # Calculate probabilities for class 0
-    #     probs_class0 = 1 - probs_class1
-    #     # Stack the probabilities for both classes along the last axis
-    #     return np.vstack((probs_class0, probs_class1)).T
 
     def predict_proba(self, x):
         x = torch.FloatTensor(x)
-        return self(x).reshape(-1).detach().numpy()
+        # Forward pass to get output probabilities for class 1
+        probs_class1 = self(x).reshape(-1).detach().numpy()
+        # Calculate probabilities for class 0
+        probs_class0 = 1 - probs_class1
+        # Stack the probabilities for both classes along the last axis
+        return np.vstack((probs_class0, probs_class1)).T
 
+    # def predict_proba(self, x):
+    #     x = torch.FloatTensor(x)
+    #     return self(x).reshape(-1).detach().numpy()
 
 
 class MNISTModel(nn.Module):
