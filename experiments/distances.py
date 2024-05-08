@@ -32,6 +32,8 @@ def compute_distance(y_s: np.array, y_t: np.array, distance_metric: str):
         return kl_div(y_s, y_t).mean()
     elif distance_metric == "mean_difference":
         return abs(y_s.mean() - y_t.mean())
+    elif distance_metric == "median_difference":
+        return abs(np.median(y_s) - np.median(y_t))
     elif distance_metric == "max_mean_discrepancy":
         return compute_mmd(y_s, y_t)
     else:

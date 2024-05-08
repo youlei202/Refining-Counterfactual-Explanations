@@ -1,10 +1,12 @@
 mapping = {
-    "independent_X_counterfactual": "CF",
-    "independent_X_train": "Train",
-    "joint_probability_X_counterfactual": "OT_CF",
-    "joint_probability_X_train": "OT_Train",
+    "CF_UniformMatch": "CF_Uniform",
+    "Train_Distri": "Train",
+    "CF_ExactMatch": "CF_Exact",
+    "CF_SingleMatch": "CF_Single",
+    "CF_OTMatch": "CF_OT",
     "optimal_transport": "OT",
     "kl_divergence": "KL",
-    "mean_difference": "MD",
+    "mean_difference": "MeanD",
+    "median_difference": "MedianD",
     "max_mean_discrepancy": "MMD",
 }

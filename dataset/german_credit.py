@@ -12,7 +12,8 @@ class GermanCreditDataset:
 
     def __init__(self):
         self.data_path = "data/"
-        self.data_filename = "german_credit_data.csv"
+        self.name = "german_credit"
+        self.data_filename = f"{self.name}.csv"
         self.target_name = "Risk"
 
         self._load_data()

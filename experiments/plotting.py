@@ -3,6 +3,7 @@ import seaborn as sns
 from scipy import stats
 from experiments import labels
 import numpy as np
+from experiments.shapley import can_convert_to_float
 
 
 def intervention_vs_distance(experiment, ci_factor=1.96, save_to_file=False):
@@ -28,10 +29,17 @@ def intervention_vs_distance(experiment, ci_factor=1.96, save_to_file=False):
                     y_sem = stats.sem(data, axis=0)
                     y_ci = y_sem * ci_factor
 
+                    shapley_method_string_list = shapley_method.split("_")
+                    if can_convert_to_float(shapley_method_string_list[-1]):
+                        shapley_method = "_".join(shapley_method_string_list[:-1])
+                        reg_str = "_" + shapley_method_string_list[-1]
+                    else:
+                        reg_str = ""
+
                     axes[i].plot(
                         x_list,
                         y_means,
-                        label=labels.mapping[shapley_method],
+                        label=labels.mapping[shapley_method] + reg_str,
                         marker="o",
                     )
                     axes[i].fill_between(
@@ -46,5 +54,7 @@ def intervention_vs_distance(experiment, ci_factor=1.96, save_to_file=False):
             fig.subplots_adjust(wspace=0.4)
             fig.suptitle(f"{model_name}, {algorithm}")
             if save_to_file:
-                fig.savefig(f"pictures/distance_{model_name}_{algorithm}")
+                fig.savefig(
+                    f"pictures/{experiment.dataset.name}_distance_{model_name}_{algorithm}"
+                )
             fig.show()

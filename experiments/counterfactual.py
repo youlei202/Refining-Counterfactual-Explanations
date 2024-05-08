@@ -1,5 +1,7 @@
 import dice_ml
 from explainers import dce
+from explainers.globe_ce import GLOBE_CE
+from explainers.ares import AReS
 import pandas as pd
 import torch
 import numpy as np
@@ -11,13 +13,15 @@ def get_factual_indices(X_test, model, target_name, sample_num):
     X_test_ext = X_test.copy()
     X_test_ext[target_name] = model.predict_proba(X_test.values)
 
-    sampling_weights = np.exp(X_test_ext[target_name].values.clip(min=0) * 10)
+    sampling_weights = np.exp(X_test_ext[target_name].values.clip(min=0) * 4)
     indices = (X_test_ext.sample(sample_num, weights=sampling_weights)).index
 
     return indices
 
 
-def compute_DiCE_counterfactuals(X_test, model, target_name, sample_num):
+def compute_DiCE_counterfactuals(
+    X_test, model, target_name, sample_num, experiment=None
+):
 
     indices = get_factual_indices(X_test, model, target_name, sample_num)
     df_factual = X_test.loc[indices]
@@ -69,6 +73,7 @@ def compute_DisCount_counterfactuals(
     model,
     target_name,
     sample_num,
+    experiment=None,
     lr=1e-1,
     n_proj=10,
     delta=0.05,
@@ -109,6 +114,126 @@ def compute_DisCount_counterfactuals(
     return {
         "X_factual": df_factual.values,
         "y_factual": df_factual_ext[target_name].values,
+        "X": X_counterfactual,
+        "y": y_counterfactual,
+    }
+
+
+def compute_GlobeCE_counterfactuals(
+    X_test,
+    model,
+    target_name,
+    sample_num,
+    experiment,
+):
+    indices = get_factual_indices(X_test, model, target_name, sample_num)
+    df_factual = X_test.loc[indices]
+
+    ares = AReS(
+        model=model,
+        dataset=experiment.dataset.dataset_ares,
+        X=df_factual,
+        n_bins=10,
+        normalise=None,
+    )  # 1MB
+    bin_widths = ares.bin_widths
+
+    globe_ce = GLOBE_CE(
+        model=model,
+        dataset=experiment.dataset.dataset_ares,
+        X=df_factual,
+        affected_subgroup=None,
+        dropped_features=[],
+        ordinal_features=[],
+        delta_init="zeros",
+        normalise=None,
+        bin_widths=bin_widths,
+        monotonicity=None,
+        p=1,
+    )
+    globe_ce.sample(
+        n_sample=sample_num,
+        magnitude=2,
+        sparsity_power=1,  # magnitude is the fixed cost sampled at
+        idxs=None,
+        n_features=df_factual.shape[1],
+        disable_tqdm=False,  # 2 random features chosen at each sample, no sparsity smoothing (p=1)
+        plot=False,
+        seed=None,
+        scheme="random",
+        dropped_features=[],
+    )
+    globe_ce.select_n_deltas(n_div=3)
+
+    X_counterfactual = (
+        globe_ce.round_categorical(globe_ce.x_aff + globe_ce.best_delta)
+        if globe_ce.n_categorical
+        else globe_ce.x_aff + globe_ce.best_delta
+    )
+    df_counterfactual = pd.DataFrame(X_counterfactual, columns=X_test.columns)
+
+    final_sample_num = min(df_factual.shape[0], df_counterfactual.shape[0])
+
+    X_factual = df_factual.sample(final_sample_num).values
+    X_counterfactual = df_counterfactual.sample(final_sample_num).values
+
+    y_factual = model.predict_proba(X_factual)
+    y_counterfactual = model.predict_proba(X_counterfactual)
+
+    return {
+        "X_factual": X_factual,
+        "y_factual": y_factual,
+        "X": X_counterfactual,
+        "y": y_counterfactual,
+    }
+
+
+def compute_AReS_counterfactuals(
+    X_test,
+    model,
+    target_name,
+    sample_num,
+    experiment,
+):
+    indices = get_factual_indices(X_test, model, target_name, sample_num)
+    df_factual = X_test.loc[indices]
+
+    ares = AReS(
+        model=model,
+        dataset=experiment.dataset.dataset_ares,
+        X=df_factual,
+        n_bins=10,
+        normalise=None,
+    )
+    ares.generate_itemsets(
+        apriori_threshold=0.2,
+        max_width=None,  # defaults to e2-1
+        affected_subgroup=None,
+        save_copy=False,
+    )
+    # Note: progress bar initial time estimate about 10 times too large
+    ares.generate_groundset(
+        max_width=None, RL_reduction=True, then_generation=None, save_copy=False
+    )
+    lams = [1, 0]  # can play around with these lambda values
+    ares.evaluate_groundset(
+        lams=lams, r=200, save_mode=1, disable_tqdm=False, plot_accuracy=False
+    )
+    ares.select_groundset(s=200)
+    ares.optimise_groundset(lams=lams, factor=1, print_updates=False, print_terms=False)
+
+    df_counterfactual = pd.DataFrame(ares.R.cfx_matrix[0], columns=X_test.columns)
+    X_counterfactual = df_counterfactual.values
+    y_counterfactual = model.predict(X_counterfactual)
+
+    final_sample_num = min(df_factual.shape[0], df_counterfactual.shape[0])
+
+    X_factual = df_factual.sample(final_sample_num).values
+    y_factual = model.predict_proba(X_factual)
+
+    return {
+        "X_factual": X_factual,
+        "y_factual": y_factual,
         "X": X_counterfactual,
         "y": y_counterfactual,
     }

@@ -12,6 +12,8 @@ from tqdm import tqdm
 
 logger = setup_logger()
 
+EPSILON = 1e-20
+
 
 class Benchmarking:
 
@@ -95,7 +97,7 @@ class Benchmarking:
         return self.shap_values
 
     def evaluate_distance_performance_under_interventions(
-        self, intervention_num_list, trials_num
+        self, intervention_num_list, trials_num, replace=False
     ):
 
         self.distance_results = {}
@@ -120,6 +122,8 @@ class Benchmarking:
                 for shapley_method, values in algorithm_dict.items():
                     self.distance_results[model_name][algorithm][shapley_method] = {}
                     P = shapley.compute_intervention_policy(shap_values=values)
+                    P += EPSILON
+                    P /= P.sum()
 
                     for distance_metric in self.distance_metrics:
 
@@ -138,7 +142,7 @@ class Benchmarking:
                                     a=P.size,
                                     size=intervention_num,
                                     p=P.flatten(),
-                                    replace=True,
+                                    replace=replace,
                                 )
                                 intervention_indices = np.unique(intervention_indices)
 
