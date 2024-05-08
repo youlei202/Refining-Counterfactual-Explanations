@@ -43,7 +43,7 @@ class WeightedExplainer:
 
         # Use the sampled_X_baseline as the background data for this specific explanation
         explainer_temp = shap.KernelExplainer(
-            self.model.predict_proba, sampled_X_baseline
+            lambda X: self.model.predict_proba(X), sampled_X_baseline
         )
         shap_values = explainer_temp.shap_values(x)
 

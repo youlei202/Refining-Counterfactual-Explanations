@@ -4,7 +4,6 @@ import pandas as pd
 from explainers.distances import WassersteinDivergence
 from scipy.stats import gaussian_kde, entropy
 from numpy.linalg import LinAlgError
-from scipy.special import kl_div
 
 
 def get_ot_plan(mu_list, method="max"):
@@ -87,6 +86,21 @@ def accuracy_performance_benchmark(
     return results
 
 
+def compute_kl_divergence(y_s, y_t):
+    try:
+        kde_s = gaussian_kde(y_s)
+        kde_t = gaussian_kde(y_t)
+        y_min = min(y_s.min(), y_t.min())
+        y_max = max(y_s.max(), y_t.max())
+        y = np.linspace(y_min, y_max, 1000)
+
+        kl_div = entropy(kde_s(y), kde_t(y))
+    except:
+        kl_div = np.inf
+
+    return kl_div
+
+
 def gaussian_kernel(x, y, sigma=1.0):
     """Compute the Gaussian kernel between x and y"""
     return np.exp(-np.linalg.norm(x - y) ** 2 / (2 * sigma**2))
@@ -138,7 +152,7 @@ def counterfactual_distance_performance_benchmarking(
             ot, _ = WassersteinDivergence().distance(
                 y_explain_tensor, y_baseline_tensor, delta=delta
             )
-            kl = kl_div(
+            kl = compute_kl_divergence(
                 y_explain_tensor.detach().numpy(),
                 y_baseline_tensor.detach().numpy(),
             )
@@ -202,15 +216,16 @@ def counterfactual_ability_performance_benchmarking(
         X_explain[i_indices, j_indices] = values_from_baseline
         X_explain_tensor = torch.FloatTensor(X_explain)
 
-        # Evaluate on test set
-        y_explain_tensor = torch.FloatTensor(model.predict_proba(X_explain_tensor))
+        y_explain_tensor = torch.FloatTensor(
+            model.predict_proba(X_explain_tensor)[:, 0]
+        )
         ot, _ = WassersteinDivergence().distance(
             y_explain_tensor, y_baseline_tensor, delta=delta
         )
-        kl = kl_div(
+        kl = compute_kl_divergence(
             y_explain_tensor.detach().numpy(),
             y_baseline_tensor.detach().numpy(),
-        ).mean()
+        )
         exp = abs(y_explain_tensor.mean().item() - y_baseline_tensor.mean().item())
         mmd = compute_mmd(
             y_explain_tensor.detach().numpy(),
