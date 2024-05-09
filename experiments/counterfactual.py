@@ -1,10 +1,14 @@
-import dice_ml
-from explainers import dce
-from explainers.globe_ce import GLOBE_CE
-from explainers.ares import AReS
 import pandas as pd
 import torch
 import numpy as np
+
+from explainers import dce
+from explainers.globe_ce import GLOBE_CE
+from explainers.ares import AReS
+from explainers.knn import KNNCounterfactuals
+from explainers.knn import EfficientQuantileTransformer
+import dice_ml
+
 
 FACTUAL_CLASS = 1
 
@@ -230,6 +234,48 @@ def compute_AReS_counterfactuals(
 
     X_factual = df_factual.sample(final_sample_num).values
     y_factual = model.predict_proba(X_factual)
+
+    return {
+        "X_factual": X_factual,
+        "y_factual": y_factual,
+        "X": X_counterfactual,
+        "y": y_counterfactual,
+    }
+
+
+def compute_KNN_counterfactuals(
+    X_test, model, target_name, sample_num, experiment, n_neighbors=1
+):
+    indices = get_factual_indices(X_test, model, target_name, sample_num)
+    df_factual = X_test.loc[indices]
+
+    X_train, X_test = experiment.X_train, experiment.X_test
+
+    scaler = EfficientQuantileTransformer()
+    scaler.fit(X_train)
+
+    knn_explainer = KNNCounterfactuals(
+        model=model,
+        X=X_train.values,
+        n_neighbors=n_neighbors,
+        distance="cityblock",
+        scaler=scaler,
+        max_samples=10000,
+    )
+
+    estimated = knn_explainer.get_multiple_counterfactuals(df_factual.values)
+
+    df_counterfactual = pd.DataFrame(
+        np.array(estimated).reshape(sample_num * n_neighbors, X_train.shape[1]),
+        columns=X_train.columns,
+    )
+
+    final_sample_num = min(df_factual.shape[0], df_counterfactual.shape[0])
+    X_factual = df_factual.sample(final_sample_num).values
+    X_counterfactual = df_counterfactual.sample(final_sample_num).values
+
+    y_factual = model.predict_proba(X_factual)
+    y_counterfactual = model.predict_proba(X_counterfactual)
 
     return {
         "X_factual": X_factual,
