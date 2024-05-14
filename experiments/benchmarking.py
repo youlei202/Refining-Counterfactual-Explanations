@@ -85,7 +85,7 @@ class Benchmarking:
                         f"Shapley values for {model_name} using {shapley_method} with counterfactual by {algorithm}"
                     )
                     self.shap_values[model_name][algorithm][shapley_method] = (
-                        shapley.compute_shapley_values(
+                        shapley.compute_shapley(
                             model=model,
                             X_train=self.X_train,
                             X_factual=X_factual,
