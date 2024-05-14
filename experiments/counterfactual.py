@@ -31,7 +31,7 @@ def compute_DiCE_counterfactuals(
     df_factual = X_test.loc[indices]
 
     df_factual_ext = df_factual.copy()
-    df_factual_ext[target_name] = model.predict(df_factual.values)
+    df_factual_ext[target_name] = model.predict_proba(df_factual.values)
 
     # Prepare for DiCE
     dice_model = dice_ml.Model(model=model, backend=model.backend)
@@ -60,10 +60,8 @@ def compute_DiCE_counterfactuals(
         pd.concat(dice_df_list).reset_index(drop=True).drop(target_name, axis=1)
     )
     X_counterfactual = df_counterfactual.values
-    y_counterfactual = (
-        pd.concat(dice_df_list).reset_index(drop=True)[target_name].values
-    )
 
+    y_counterfactual = model.predict_proba(X_counterfactual)
     return {
         "X_factual": df_factual.values,
         "y_factual": df_factual_ext[target_name].values,
@@ -91,7 +89,7 @@ def compute_DisCount_counterfactuals(
     indices = get_factual_indices(X_test, model, target_name, sample_num)
     df_factual = X_test.loc[indices]
     df_factual_ext = df_factual.copy()
-    df_factual_ext[target_name] = model.predict(df_factual.values)
+    df_factual_ext[target_name] = model.predict_proba(df_factual.values)
     y_target = torch.FloatTensor(
         [1 - FACTUAL_CLASS for _ in range(df_factual.shape[0])]
     )
@@ -113,7 +111,7 @@ def compute_DisCount_counterfactuals(
         index=df_factual.index,
     )
     X_counterfactual = df_counterfactual.values
-    y_counterfactual = discount_explainer.best_y.detach().numpy().flatten()
+    y_counterfactual = model.predict_proba(X_counterfactual)
 
     return {
         "X_factual": df_factual.values,
@@ -244,7 +242,7 @@ def compute_AReS_counterfactuals(
 
 
 def compute_KNN_counterfactuals(
-    X_test, model, target_name, sample_num, experiment, n_neighbors=1
+    X_test, model, target_name, sample_num, experiment, n_neighbors=50
 ):
     indices = get_factual_indices(X_test, model, target_name, sample_num)
     df_factual = X_test.loc[indices]
