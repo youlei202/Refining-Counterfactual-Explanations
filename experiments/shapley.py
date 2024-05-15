@@ -4,6 +4,10 @@ import ot
 import numpy as np
 
 
+SHAP_SAMPLE_SIZE = 10000
+# SHAP_SAMPLE_SIZE = 'auto'
+
+
 def can_convert_to_float(s):
     try:
         float(s)
@@ -24,18 +28,21 @@ def compute_shapley(
 
     if shapley_method == "CF_UniformMatch":
         return shap.KernelExplainer(model.predict_proba, X_counterfactual).shap_values(
-            X_factual
+            X_factual, nsamples=SHAP_SAMPLE_SIZE
         )
     elif shapley_method == "Train_Distri":
         X_train_sampled = X_train.sample(N).values
         return shap.KernelExplainer(model.predict_proba, X_train_sampled).shap_values(
-            X_factual
+            X_factual, nsamples=SHAP_SAMPLE_SIZE
         )
     elif shapley_method == "CF_SingleMatch":
         probs = np.diag(np.ones(N)) / N
         np.random.shuffle(probs)
         return pshap.JointProbabilityExplainer(model).shap_values(
-            X_factual, X_counterfactual, joint_probs=probs
+            X_factual,
+            X_counterfactual,
+            joint_probs=probs,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
         )
     else:
         shapley_method_string_list = shapley_method.split("_")
@@ -53,7 +60,10 @@ def compute_shapley(
             else:
                 ot_plan = ot.emd(np.ones(N) / N, np.ones(N) / N, ot_cost)
             return pshap.JointProbabilityExplainer(model).shap_values(
-                X_factual, X_counterfactual, joint_probs=ot_plan
+                X_factual,
+                X_counterfactual,
+                joint_probs=ot_plan,
+                shap_sample_size=SHAP_SAMPLE_SIZE,
             )
         else:
             raise NotImplementedError

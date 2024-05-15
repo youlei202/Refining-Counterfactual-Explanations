@@ -21,7 +21,9 @@ class WeightedExplainer:
         """
         self.model = model
 
-    def explain_instance(self, x, X_baseline, weights, sample_size=1000):
+    def explain_instance(
+        self, x, X_baseline, weights, sample_size=1000, shap_sample_size="auto"
+    ):
         """
         Generates SHAP values for a single instance using a weighted sample of baseline data.
 
@@ -48,7 +50,7 @@ class WeightedExplainer:
         explainer_temp = shap.KernelExplainer(
             self.model.predict_proba, sampled_X_baseline
         )
-        shap_values = explainer_temp.shap_values(x)
+        shap_values = explainer_temp.shap_values(x, nsamples=shap_sample_size)
 
         return shap_values
 
@@ -69,7 +71,9 @@ class JointProbabilityExplainer:
         self.model = model
         self.weighted_explainer = WeightedExplainer(model)
 
-    def shap_values(self, X, X_baseline, joint_probs, sample_size=1000):
+    def shap_values(
+        self, X, X_baseline, joint_probs, sample_size=1000, shap_sample_size="auto"
+    ):
         """
         Computes SHAP values for multiple instances using a set of joint probability weights.
 
@@ -83,7 +87,11 @@ class JointProbabilityExplainer:
         return np.array(
             [
                 self.weighted_explainer.explain_instance(
-                    x, X_baseline, weights, sample_size=sample_size
+                    x,
+                    X_baseline,
+                    weights,
+                    sample_size=sample_size,
+                    shap_sample_size=shap_sample_size,
                 )
                 for x, weights in zip(X, joint_probs)
             ]

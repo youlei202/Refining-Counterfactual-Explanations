@@ -21,7 +21,7 @@ class Benchmarking:
 
     def __init__(
         self,
-        dataset: GermanCreditDataset,
+        dataset,
         models,
         shapley_methods,
         distance_metrics,
