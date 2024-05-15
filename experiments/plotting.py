@@ -20,6 +20,11 @@ def intervention_vs_distance(experiment, ci_factor=1.96, save_to_file=False):
             for i, distance_metric in enumerate(distance_metrics):
 
                 for shapley_method in shapley_methods:
+                    if (
+                        shapley_method == "optimality"
+                        and distance_metric != "mean_difference"
+                    ):
+                        continue
                     results = experiment.distance_results[model_name][algorithm][
                         shapley_method
                     ][distance_metric]

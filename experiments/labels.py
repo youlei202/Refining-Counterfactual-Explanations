@@ -9,4 +9,5 @@ mapping = {
     "mean_difference": "MeanD",
     "median_difference": "MedianD",
     "max_mean_discrepancy": "MMD",
+    "optimality": "Optimal",
 }

@@ -9,6 +9,8 @@ from utils.logger_config import setup_logger
 from experiments import shapley
 from experiments.distances import compute_distance
 from tqdm import tqdm
+from experiments.baseline import OptimalMeanDifference
+
 
 logger = setup_logger()
 
@@ -18,7 +20,12 @@ EPSILON = 1e-20
 class Benchmarking:
 
     def __init__(
-        self, dataset: GermanCreditDataset, models, shapley_methods, distance_metrics
+        self,
+        dataset: GermanCreditDataset,
+        models,
+        shapley_methods,
+        distance_metrics,
+        md_baseline=True,
     ):
         self.unwrapped_models = models
 
@@ -37,6 +44,8 @@ class Benchmarking:
 
         self.shapley_methods = shapley_methods
         self.distance_metrics = distance_metrics
+
+        self.md_baseline = md_baseline
 
     def train_and_evaluate_models(self, random_state=None):
         self.X_train, self.X_test, self.y_train, self.y_test = (
@@ -172,3 +181,27 @@ class Benchmarking:
                         self.distance_results[model_name][algorithm][shapley_method][
                             distance_metric
                         ] = results_list
+
+        if self.md_baseline and "mean_difference" in self.distance_metrics:
+
+            for (model_name, model_dict), model in zip(
+                self.shap_values.items(), self.models
+            ):
+                for algorithm, algorithm_dict in model_dict.items():
+                    trial_result = {
+                        "x_list": intervention_num_list,
+                        "y_list": [],
+                    }
+                    for intervention_num in tqdm(intervention_num_list):
+                        optimal_mean_difference = OptimalMeanDifference(
+                            model, X_factual, X_counterfactual
+                        )
+                        eta = optimal_mean_difference.solve_problem(C=intervention_num)[
+                            "eta"
+                        ]
+                        trial_result["y_list"].append(eta)
+
+                    self.distance_results[model_name][algorithm]["optimality"] = {}
+                    self.distance_results[model_name][algorithm]["optimality"][
+                        "mean_difference"
+                    ] = [trial_result]

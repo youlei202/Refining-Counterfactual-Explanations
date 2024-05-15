@@ -16,7 +16,7 @@ def powerset(iterable):
 
 # Define f(z_i) as the prediction from a trained model
 def f(model, z_i):
-    return model.predict(z_i.reshape(1, -1))[0]
+    return model.predict_proba(z_i.reshape(1, -1))[0]
 
 
 class OptimalMeanDifference:
@@ -62,6 +62,9 @@ class OptimalMeanDifference:
         # Create the model
         self.problem = gp.Model("subset_selection")
 
+        # Set the model to be silent
+        self.problem.setParam("OutputFlag", 0)
+
         # Decision variables
         self.a = self.problem.addVars(
             self.n, self.num_subsets, vtype=GRB.BINARY, name="a"
@@ -72,8 +75,6 @@ class OptimalMeanDifference:
 
         # Objective function
         self.problem.setObjective(self.eta, GRB.MINIMIZE)
-
-        # Constraints are below:
 
         # Absolute value constraint
         self.problem.addConstr(
@@ -115,8 +116,19 @@ class OptimalMeanDifference:
             "capacity",
         )
 
-        # Optimize the model
+        # Optimize the problem
         self.problem.optimize()
+
+        # Extract the solution for the decision variables a
+        self.a_solution = np.zeros((self.n, self.num_subsets))
+
+        for i in range(self.n):
+            for j in range(self.num_subsets):
+                if (
+                    self.a[i, j].X > 0.5
+                ):  # Gurobi returns the value of the variable, check if it's selected
+                    self.a_solution[i, j] = 1
+
         return {"eta": self.eta.X}
 
     def display_g(self, colorbar=False):
@@ -151,19 +163,9 @@ class OptimalMeanDifference:
         logger.info(f"Total consumed size = {total_size}")
 
     def display_a(self, colorbar=False):
-        # Extract the solution for the decision variables a
-        a_solution = np.zeros((self.n, self.num_subsets))
-
-        for i in range(self.n):
-            for j in range(self.num_subsets):
-                if (
-                    self.a[i, j].X > 0.5
-                ):  # Gurobi returns the value of the variable, check if it's selected
-                    a_solution[i, j] = 1
-
         # Visualize the matrix a_solution using a heatmap
         plt.imshow(
-            a_solution,
+            self.a_solution,
             cmap="gray",
         )
         if colorbar:
@@ -172,3 +174,6 @@ class OptimalMeanDifference:
         plt.ylabel("Data Point Index")
         plt.title("Heatmap of Decision Variables a")
         plt.show()
+
+    def compute_intervention_policy(self):
+        return self.a_solution / self.a_solution.sum()
