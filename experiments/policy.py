@@ -16,8 +16,8 @@ def can_convert_to_float(s):
         return False
 
 
-def convert_shap_to_policy(shap_values):
-    P = np.abs(shap_values) / np.abs(shap_values).sum()
+def convert_matrix_to_policy(matrix):
+    P = np.abs(matrix) / np.abs(matrix).sum()
     P += EPSILON
     P /= P.sum()
     return P
@@ -29,13 +29,19 @@ class CounterfactualUniformDistributionPolicy:
         assert X_factual.shape[0] == X_counterfactual.shape[0]
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
+        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
 
     def compute_policy(self):
         shap_values = shap.KernelExplainer(
             self.model.predict_proba, self.X_counterfactual
         ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
 
-        return convert_shap_to_policy(shap_values)
+        return {
+            "c_policy": convert_matrix_to_policy(shap_values),
+            "z_policy": convert_matrix_to_policy(
+                np.full((self.N, self.M), fill_value=1)
+            ),
+        }
 
 
 class TrainUniformDistributionPolicy:
@@ -43,7 +49,7 @@ class TrainUniformDistributionPolicy:
         self.model = model
         self.X_factual = X_factual
         self.X_train = X_train
-        self.N = X_factual.shape[0]
+        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
 
     def compute_policy(self):
         X_train_sampled = self.X_train.sample(self.N).values
@@ -51,7 +57,12 @@ class TrainUniformDistributionPolicy:
             self.model.predict_proba, X_train_sampled
         ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
 
-        return convert_shap_to_policy(shap_values)
+        return {
+            "c_policy": convert_matrix_to_policy(shap_values),
+            "z_policy": convert_matrix_to_policy(
+                np.full((self.N, self.M), fill_value=1)
+            ),
+        }
 
 
 class CounterfactualSingleMatchingPolicy:
@@ -60,10 +71,13 @@ class CounterfactualSingleMatchingPolicy:
         assert X_factual.shape[0] == X_counterfactual.shape[0]
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
-        self.N = X_factual.shape[0]
+        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
 
     def compute_policy(self):
-        self.probs = np.eye(self.N) / self.N
+        self.probs = np.zeros((self.N, self.M))
+        # Assign 1/N to a random position in each row
+        for i in range(self.N):
+            self.probs[i, np.random.randint(0, self.M)] = 1 / self.N
         shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
             self.X_factual,
             self.X_counterfactual,
@@ -71,7 +85,10 @@ class CounterfactualSingleMatchingPolicy:
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        return convert_shap_to_policy(shap_values)
+        return {
+            "c_policy": convert_matrix_to_policy(shap_values),
+            "z_policy": convert_matrix_to_policy(self.probs),
+        }
 
 
 class CounterfactualOptimalTransportPolicy:
@@ -80,7 +97,7 @@ class CounterfactualOptimalTransportPolicy:
         assert X_factual.shape[0] == X_counterfactual.shape[0]
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
-        self.N = X_factual.shape[0]
+        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
         self.reg = reg
 
         self.ot_cost = ot.dist(self.X_factual, self.X_counterfactual, p=2)
@@ -105,7 +122,10 @@ class CounterfactualOptimalTransportPolicy:
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        return convert_shap_to_policy(shap_values)
+        return {
+            "c_policy": convert_matrix_to_policy(shap_values),
+            "z_policy": convert_matrix_to_policy(self.ot_plan),
+        }
 
 
 def compute_intervention_policy(
