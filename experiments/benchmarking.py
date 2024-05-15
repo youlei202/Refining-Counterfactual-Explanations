@@ -169,7 +169,7 @@ class Benchmarking:
                                     X_intervention[i_indices, j_indices] = (
                                         values_from_X_counterfactual
                                     )
-                                y_intervention = model.predict_proba(X_intervention)
+                                y_intervention = model.predict(X_intervention)
 
                                 result = compute_distance(
                                     y_intervention, y_counterfactual, distance_metric
@@ -183,7 +183,6 @@ class Benchmarking:
                         ] = results_list
 
         if self.md_baseline and "mean_difference" in self.distance_metrics:
-
             for (model_name, model_dict), model in zip(
                 self.shap_values.items(), self.models
             ):
@@ -192,6 +191,9 @@ class Benchmarking:
                         "x_list": intervention_num_list,
                         "y_list": [],
                     }
+                    logger.info(
+                        f"Computing optimal_mean_difference for ({model_name}, {algorithm})"
+                    )
                     for intervention_num in tqdm(intervention_num_list):
                         optimal_mean_difference = OptimalMeanDifference(
                             model, X_factual, X_counterfactual

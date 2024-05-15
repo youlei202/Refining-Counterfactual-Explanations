@@ -16,7 +16,7 @@ def powerset(iterable):
 
 # Define f(z_i) as the prediction from a trained model
 def f(model, z_i):
-    return model.predict_proba(z_i.reshape(1, -1))[0]
+    return model.predict(z_i.reshape(1, -1))[0]
 
 
 class OptimalMeanDifference:
