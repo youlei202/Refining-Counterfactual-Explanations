@@ -15,7 +15,7 @@ FACTUAL_CLASS = 1
 
 def get_factual_indices(X_test, model, target_name, sample_num):
     X_test_ext = X_test.copy()
-    X_test_ext[target_name] = model.predict_proba(X_test.values)
+    X_test_ext[target_name] = model.predict(X_test.values)
 
     sampling_weights = np.exp(X_test_ext[target_name].values.clip(min=0) * 4)
     indices = (X_test_ext.sample(sample_num, weights=sampling_weights)).index
@@ -31,7 +31,7 @@ def compute_DiCE_counterfactuals(
     df_factual = X_test.loc[indices]
 
     df_factual_ext = df_factual.copy()
-    df_factual_ext[target_name] = model.predict_proba(df_factual.values)
+    df_factual_ext[target_name] = model.predict(df_factual.values)
 
     # Prepare for DiCE
     dice_model = dice_ml.Model(model=model, backend=model.backend)
@@ -61,7 +61,7 @@ def compute_DiCE_counterfactuals(
     )
     X_counterfactual = df_counterfactual.values
 
-    y_counterfactual = model.predict_proba(X_counterfactual)
+    y_counterfactual = model.predict(X_counterfactual)
     return {
         "X_factual": df_factual.values,
         "y_factual": df_factual_ext[target_name].values,
@@ -89,7 +89,7 @@ def compute_DisCount_counterfactuals(
     indices = get_factual_indices(X_test, model, target_name, sample_num)
     df_factual = X_test.loc[indices]
     df_factual_ext = df_factual.copy()
-    df_factual_ext[target_name] = model.predict_proba(df_factual.values)
+    df_factual_ext[target_name] = model.predict(df_factual.values)
     y_target = torch.FloatTensor(
         [1 - FACTUAL_CLASS for _ in range(df_factual.shape[0])]
     )
@@ -111,7 +111,7 @@ def compute_DisCount_counterfactuals(
         index=df_factual.index,
     )
     X_counterfactual = df_counterfactual.values
-    y_counterfactual = model.predict_proba(X_counterfactual)
+    y_counterfactual = model.predict(X_counterfactual)
 
     return {
         "X_factual": df_factual.values,
@@ -179,8 +179,8 @@ def compute_GlobeCE_counterfactuals(
     X_factual = df_factual.sample(final_sample_num).values
     X_counterfactual = df_counterfactual.sample(final_sample_num).values
 
-    y_factual = model.predict_proba(X_factual)
-    y_counterfactual = model.predict_proba(X_counterfactual)
+    y_factual = model.predict(X_factual)
+    y_counterfactual = model.predict(X_counterfactual)
 
     return {
         "X_factual": X_factual,
@@ -231,7 +231,7 @@ def compute_AReS_counterfactuals(
     final_sample_num = min(df_factual.shape[0], df_counterfactual.shape[0])
 
     X_factual = df_factual.sample(final_sample_num).values
-    y_factual = model.predict_proba(X_factual)
+    y_factual = model.predict(X_factual)
 
     return {
         "X_factual": X_factual,
@@ -272,8 +272,8 @@ def compute_KNN_counterfactuals(
     X_factual = df_factual.sample(final_sample_num).values
     X_counterfactual = df_counterfactual.sample(final_sample_num).values
 
-    y_factual = model.predict_proba(X_factual)
-    y_counterfactual = model.predict_proba(X_counterfactual)
+    y_factual = model.predict(X_factual)
+    y_counterfactual = model.predict(X_counterfactual)
 
     return {
         "X_factual": X_factual,

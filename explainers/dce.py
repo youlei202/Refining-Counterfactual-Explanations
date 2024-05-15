@@ -7,6 +7,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils.logger_config import setup_logger
 import math
+from tqdm import tqdm
 
 logger = setup_logger()
 
@@ -228,8 +229,6 @@ class DistributionalCounterfactualExplainer:
         self._update_Q(mu_list=self.swd.mu_list, nu=self.wd.nu, eta=eta)
         self.y = self.model(self.X)
 
-        # logger.info(f"\t  Qx_grads = {self.Qx_grads}")
-
         # Check for convergence using moving average of past Q changes
         past_Qs.pop(0)
         past_Qs.append(self.Q.item())
@@ -242,10 +241,11 @@ class DistributionalCounterfactualExplainer:
         max_iter: Optional[int] = 100,
         tau=10,
         tol=1e-6,
+        silent=True,
     ):
         logger.info("Optimization (without chance constraints) started")
         past_Qs = [float("inf")] * 5  # Store the last 5 Q values for moving average
-        for i in range(max_iter):
+        for i in tqdm(range(max_iter)):
             self.swd.distance(
                 X_s=self.X[:, self.explain_indices] * self.costs_vector_reshaped,
                 X_t=self.X_prime[:, self.explain_indices] * self.costs_vector_reshaped,
@@ -255,9 +255,10 @@ class DistributionalCounterfactualExplainer:
 
             avg_Q_change = self.__perform_SGD(past_Qs, eta=eta, tau=tau)
 
-            logger.info(
-                f"Iter {i+1}: Q = {self.Q}, term1 = {self.term1}, term2 = {self.term2}"
-            )
+            if not silent:
+                logger.info(
+                    f"Iter {i+1}: Q = {self.Q}, term1 = {self.term1}, term2 = {self.term2}"
+                )
 
             if abs(avg_Q_change) < tol:
                 logger.info(f"Converged at iteration {i+1}")
@@ -278,13 +279,14 @@ class DistributionalCounterfactualExplainer:
         tau=10,
         tol=1e-6,
         bootstrap=True,
+        silent=True,
     ):
         self.interval_left = l
         self.interval_right = r
 
         logger.info("Optimization started")
         past_Qs = [float("inf")] * 5  # Store the last 5 Q values for moving average
-        for i in range(max_iter):
+        for i in tqdm(range(max_iter)):
             swd_dist, _ = self.swd.distance(
                 X_s=self.X[:, self.explain_indices] * self.costs_vector_reshaped,
                 X_t=self.X_prime[:, self.explain_indices] * self.costs_vector_reshaped,
@@ -336,10 +338,13 @@ class DistributionalCounterfactualExplainer:
             self.interval_left_list.append(self.interval_left)
             self.interval_right_list.append(self.interval_right)
 
-            logger.info(
-                f"U_1-Qu_upper={U_1-self.Qu_upper}, U_2-Qv_upper={U_2-self.Qv_upper}"
-            )
-            logger.info(f"eta={eta}, l={self.interval_left}, r={self.interval_right}")
+            if not silent:
+                logger.info(
+                    f"U_1-Qu_upper={U_1-self.Qu_upper}, U_2-Qv_upper={U_2-self.Qv_upper}"
+                )
+                logger.info(
+                    f"eta={eta}, l={self.interval_left}, r={self.interval_right}"
+                )
 
             avg_Q_change = self.__perform_SGD(past_Qs, eta=eta, tau=tau)
 
@@ -354,9 +359,10 @@ class DistributionalCounterfactualExplainer:
                 self.best_y = self.y.clone().detach()
                 self.found_feasible_solution = True
 
-            logger.info(
-                f"Iter {i+1}: Q = {self.Q}, term1 = {self.term1}, term2 = {self.term2}"
-            )
+            if not silent:
+                logger.info(
+                    f"Iter {i+1}: Q = {self.Q}, term1 = {self.term1}, term2 = {self.term2}"
+                )
 
             if abs(avg_Q_change) < tol:
                 logger.info(f"Converged at iteration {i+1}")
