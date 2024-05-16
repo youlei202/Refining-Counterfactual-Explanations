@@ -8,47 +8,91 @@ SHAP_SAMPLE_SIZE = 10000
 # SHAP_SAMPLE_SIZE = "auto"
 
 
-def can_convert_to_float(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
+def COLA(X_factual, varphi, q, C, replace):
+    action_indice = np.random.choice(
+        a=varphi.size,
+        size=C,
+        p=varphi.flatten(),
+        replace=replace,
+    )
+    action_indice = np.unique(action_indice)
+
+    # Convert flat indices back to 2D indices
+    i_indice, k_indice = np.unravel_index(action_indice, varphi.shape)
+
+    Z_counterfactual = X_factual.copy()
+    if C > 0:
+        # Set values at selected 2D indices
+        values_from_q = q[i_indice, k_indice]
+        Z_counterfactual[i_indice, k_indice] = values_from_q
+
+    return Z_counterfactual, action_indice
 
 
-def convert_matrix_to_policy(matrix):
-    P = np.abs(matrix) / np.abs(matrix).sum()
-    P += EPSILON
-    P /= P.sum()
-    return P
+def A_values(W, R, method):
+    N, M = W.shape
+    _, P = R.shape
+    Q = np.zeros((N, P))
+
+    if method == "avg":
+        for i in range(N):
+            weights = W[i, :]
+            # Normalize weights to ensure they sum to 1
+            normalized_weights = weights / np.sum(weights)
+            # Reshape to match R's rows for broadcasting
+            normalized_weights = normalized_weights.reshape(-1, 1)
+            # Compute the weighted sum
+            Q[i, :] = np.sum(normalized_weights * R, axis=0)
+    elif method == "max":
+        for i in range(N):
+            max_weight_index = np.argmax(W[i, :])
+            Q[i, :] = R[max_weight_index, :]
+    else:
+        raise NotImplementedError
+    return Q
 
 
-class CounterfactualUniformDistributionPolicy:
+class Policy:
+    def policy_dict(self, shap_values, method):
+        varphi = convert_matrix_to_policy(shap_values)
+        p = convert_matrix_to_policy(np.full((self.N, self.M), fill_value=1))
+        q = A_values(W=p, R=self.X_counterfactual, method=method)
+        return {"varphi": varphi, "p": p, "q": q}
+
+
+class CounterfactualPolicy(Policy):
     def __init__(self, model, X_factual, X_counterfactual):
         self.model = model
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
         self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
 
-    def compute_policy(self):
-        shap_values = shap.KernelExplainer(
-            self.model.predict_proba, self.X_counterfactual
-        ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
 
-        return {
-            "c_policy": convert_matrix_to_policy(shap_values),
-            "z_policy": convert_matrix_to_policy(
-                np.full((self.N, self.M), fill_value=1)
-            ),
-        }
-
-
-class TrainUniformDistributionPolicy:
+class TrainsetPolicy(Policy):
     def __init__(self, model, X_factual, X_train):
         self.model = model
         self.X_factual = X_factual
         self.X_train = X_train
         self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
+
+
+class CounterfactualUniformDistributionPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def compute_policy(self):
+        shap_values = shap.KernelExplainer(
+            self.model.predict_proba, self.X_counterfactual
+        ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
+
+        return self.policy_dict(shap_values, self.method)
+
+
+class TrainUniformDistributionPolicy(TrainsetPolicy):
+    def __init__(self, model, X_factual, X_train, method="avg"):
+        super().__init__(model, X_factual, X_train)
+        self.method = method
 
     def compute_policy(self):
         X_train_sampled = self.X_train.sample(self.N).values
@@ -56,20 +100,13 @@ class TrainUniformDistributionPolicy:
             self.model.predict_proba, X_train_sampled
         ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
 
-        return {
-            "c_policy": convert_matrix_to_policy(shap_values),
-            "z_policy": convert_matrix_to_policy(
-                np.full((self.N, self.M), fill_value=1)
-            ),
-        }
+        return self.policy_dict(shap_values, self.method)
 
 
-class CounterfactualSingleMatchingPolicy:
-    def __init__(self, model, X_factual, X_counterfactual):
-        self.model = model
-        self.X_factual = X_factual
-        self.X_counterfactual = X_counterfactual
-        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
+class CounterfactualSingleMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
 
     def compute_policy(self):
         self.probs = np.zeros((self.N, self.M))
@@ -83,20 +120,14 @@ class CounterfactualSingleMatchingPolicy:
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        return {
-            "c_policy": convert_matrix_to_policy(shap_values),
-            "z_policy": convert_matrix_to_policy(self.probs),
-        }
+        return self.policy_dict(shap_values, self.method)
 
 
-class CounterfactualOptimalTransportPolicy:
-    def __init__(self, model, X_factual, X_counterfactual, reg=0):
-        self.model = model
-        self.X_factual = X_factual
-        self.X_counterfactual = X_counterfactual
-        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
+class CounterfactualOptimalTransportPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, reg=0, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
         self.reg = reg
-
+        self.method = method
         self.ot_cost = ot.dist(self.X_factual, self.X_counterfactual, p=2)
 
     def compute_policy(self):
@@ -119,10 +150,7 @@ class CounterfactualOptimalTransportPolicy:
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        return {
-            "c_policy": convert_matrix_to_policy(shap_values),
-            "z_policy": convert_matrix_to_policy(self.ot_plan),
-        }
+        return self.policy_dict(shap_values, self.method)
 
 
 def compute_intervention_policy(
@@ -161,3 +189,18 @@ def compute_intervention_policy(
             ).compute_policy()
         else:
             raise NotImplementedError
+
+
+def can_convert_to_float(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+def convert_matrix_to_policy(matrix):
+    P = np.abs(matrix) / np.abs(matrix).sum()
+    P += EPSILON
+    P /= P.sum()
+    return P

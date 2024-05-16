@@ -19,31 +19,6 @@ logger = setup_logger()
 logging.getLogger("shap").setLevel(logging.WARNING)
 
 
-def max_weighted_rows(W, R):
-    N, M = W.shape
-    _, P = R.shape
-    Q = np.zeros((N, P))
-    for i in range(N):
-        max_weight_index = np.argmax(W[i, :])
-        Q[i, :] = R[max_weight_index, :]
-    return Q
-
-
-def avg_weighted_rows(W, R):
-    N, M = W.shape
-    _, P = R.shape
-    Q = np.zeros((N, P))
-    for i in range(N):
-        weights = W[i, :]
-        # Normalize weights to ensure they sum to 1
-        normalized_weights = weights / np.sum(weights)
-        # Reshape to match R's rows for broadcasting
-        normalized_weights = normalized_weights.reshape(-1, 1)
-        # Compute the weighted sum
-        Q[i, :] = np.sum(normalized_weights * R, axis=0)
-    return Q
-
-
 class Benchmarking:
 
     def __init__(
@@ -157,8 +132,9 @@ class Benchmarking:
                     logger.info(
                         f"Policy for {model_name} using {shapley_method} with counterfactual by {algorithm}"
                     )
-                    c_policy = policy_dict["c_policy"]
-                    z_policy = policy_dict["z_policy"]
+                    varphi = policy_dict["varphi"]
+                    q = policy_dict["q"]
+
                     self.distance_results[model_name][algorithm][shapley_method] = {}
 
                     for distance_metric in self.distance_metrics:
@@ -174,27 +150,14 @@ class Benchmarking:
                             }
 
                             for intervention_num in intervention_num_list:
-                                intervention_indices = np.random.choice(
-                                    a=c_policy.size,
-                                    size=intervention_num,
-                                    p=c_policy.flatten(),
+                                Z_counterfactual, _ = policy.COLA(
+                                    X_factual=X_factual,
+                                    varphi=varphi,
+                                    q=q,
+                                    C=intervention_num,
                                     replace=replace,
                                 )
-                                intervention_indices = np.unique(intervention_indices)
-
-                                # Convert flat indices back to 2D indices
-                                i_indice, k_indice = np.unravel_index(
-                                    intervention_indices, c_policy.shape
-                                )
-
-                                Q = avg_weighted_rows(W=z_policy, R=X_counterfactual)
-
-                                X_intervention = X_factual.copy()
-                                if intervention_num > 0:
-                                    # Set values at selected 2D indices
-                                    values_from_Q = Q[i_indice, k_indice]
-                                    X_intervention[i_indice, k_indice] = values_from_Q
-                                y_intervention = model.predict(X_intervention)
+                                y_intervention = model.predict(Z_counterfactual)
 
                                 result = compute_distance(
                                     y_intervention, y_counterfactual, distance_metric
