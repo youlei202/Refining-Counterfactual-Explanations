@@ -26,7 +26,6 @@ class OptimalMeanDifference:
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
 
-        assert X_factual.shape == X_counterfactual.shape
         self.n, self.p = X_factual.shape
 
         # Generate the power set and create a mapping

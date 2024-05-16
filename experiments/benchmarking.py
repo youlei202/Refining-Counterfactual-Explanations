@@ -6,15 +6,17 @@ import shap
 from explainers import pshap
 import numpy as np
 from utils.logger_config import setup_logger
-from experiments import shapley
+from experiments import policy
 from experiments.distances import compute_distance
 from tqdm import tqdm
 from experiments.baseline import OptimalMeanDifference
+import logging
 
 
 logger = setup_logger()
 
-EPSILON = 1e-20
+# Set the logging level to WARNING to suppress INFO messages
+logging.getLogger("shap").setLevel(logging.WARNING)
 
 
 class Benchmarking:
@@ -72,20 +74,20 @@ class Benchmarking:
                 f'{model_name} accuracy: {self.model_reports[self.model_names[0]]["accuracy"]}'
             )
 
-    def compute_shapley_values(
+    def compute_intervention_policies(
         self,
         model_counterfactuals,
     ):
-        self.shap_values = {}
+        self.policies = {}
         self.model_counterfactuals = model_counterfactuals
 
         for model, model_name in zip(self.models, self.model_names):
-            self.shap_values[model_name] = {}
+            self.policies[model_name] = {}
 
             for algorithm, counterfactual_dict in model_counterfactuals[
                 model_name
             ].items():
-                self.shap_values[model_name][algorithm] = {}
+                self.policies[model_name][algorithm] = {}
                 X_factual = counterfactual_dict["X_factual"]
                 X_counterfactual = counterfactual_dict["X"]
 
@@ -93,8 +95,8 @@ class Benchmarking:
                     logger.info(
                         f"Shapley values for {model_name} using {shapley_method} with counterfactual by {algorithm}"
                     )
-                    self.shap_values[model_name][algorithm][shapley_method] = (
-                        shapley.compute_shapley(
+                    self.policies[model_name][algorithm][shapley_method] = (
+                        policy.compute_intervention_policy(
                             model=model,
                             X_train=self.X_train,
                             X_factual=X_factual,
@@ -103,7 +105,7 @@ class Benchmarking:
                         )
                     )
 
-        return self.shap_values
+        return self.policies
 
     def evaluate_distance_performance_under_interventions(
         self, intervention_num_list, trials_num, replace=False
@@ -111,9 +113,7 @@ class Benchmarking:
 
         self.distance_results = {}
 
-        for (model_name, model_dict), model in zip(
-            self.shap_values.items(), self.models
-        ):
+        for (model_name, model_dict), model in zip(self.policies.items(), self.models):
             self.distance_results[model_name] = {}
 
             for algorithm, algorithm_dict in model_dict.items():
@@ -128,11 +128,14 @@ class Benchmarking:
                     "y"
                 ]
 
-                for shapley_method, values in algorithm_dict.items():
+                for shapley_method, policy_dict in algorithm_dict.items():
+                    logger.info(
+                        f"Policy for {model_name} using {shapley_method} with counterfactual by {algorithm}"
+                    )
+                    varphi = policy_dict["varphi"]
+                    q = policy_dict["q"]
+
                     self.distance_results[model_name][algorithm][shapley_method] = {}
-                    P = shapley.compute_intervention_policy(shap_values=values)
-                    P += EPSILON
-                    P /= P.sum()
 
                     for distance_metric in self.distance_metrics:
 
@@ -140,36 +143,21 @@ class Benchmarking:
                             f"Computing {distance_metric} for ({model_name}, {algorithm}, {shapley_method})"
                         )
                         results_list = []
-                        for t in tqdm(range(trials_num)):
+                        for _ in tqdm(range(trials_num)):
                             trial_result = {
                                 "x_list": intervention_num_list,
                                 "y_list": [],
                             }
 
                             for intervention_num in intervention_num_list:
-                                intervention_indices = np.random.choice(
-                                    a=P.size,
-                                    size=intervention_num,
-                                    p=P.flatten(),
+                                Z_counterfactual, _ = policy.COLA(
+                                    X_factual=X_factual,
+                                    varphi=varphi,
+                                    q=q,
+                                    C=intervention_num,
                                     replace=replace,
                                 )
-                                intervention_indices = np.unique(intervention_indices)
-
-                                # Convert flat indices back to 2D indices
-                                i_indices, j_indices = np.unravel_index(
-                                    intervention_indices, P.shape
-                                )
-                                X_intervention = X_factual.copy()
-
-                                if intervention_num > 0:
-                                    # Set values at selected 2D indices
-                                    values_from_X_counterfactual = X_counterfactual[
-                                        i_indices, j_indices
-                                    ]
-                                    X_intervention[i_indices, j_indices] = (
-                                        values_from_X_counterfactual
-                                    )
-                                y_intervention = model.predict(X_intervention)
+                                y_intervention = model.predict(Z_counterfactual)
 
                                 result = compute_distance(
                                     y_intervention, y_counterfactual, distance_metric
@@ -184,7 +172,7 @@ class Benchmarking:
 
         if self.md_baseline and "mean_difference" in self.distance_metrics:
             for (model_name, model_dict), model in zip(
-                self.shap_values.items(), self.models
+                self.policies.items(), self.models
             ):
                 for algorithm, algorithm_dict in model_dict.items():
                     trial_result = {

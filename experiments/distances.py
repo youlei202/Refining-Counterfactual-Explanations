@@ -22,11 +22,10 @@ def compute_mmd(y_s, y_t, kernel=gaussian_kernel):
 
 
 def compute_distance(y_s: np.array, y_t: np.array, distance_metric: str):
-    assert y_s.shape[0] == y_t.shape[0]
-    N = y_s.shape[0]
+    N, M = y_s.shape[0], y_t.shape[0]
     if distance_metric == "optimal_transport":
         ot_cost = ot.dist(y_s.reshape(-1, 1), y_t.reshape(-1, 1))
-        ot_plan = ot.emd(np.ones(N) / N, np.ones(N) / N, ot_cost)
+        ot_plan = ot.emd(np.ones(N) / N, np.ones(M) / M, ot_cost)
         return np.sum(ot_plan * ot_cost)
     elif distance_metric == "kl_divergence":
         return kl_div(y_s, y_t).mean()

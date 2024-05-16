@@ -3,7 +3,7 @@ import seaborn as sns
 from scipy import stats
 from experiments import labels
 import numpy as np
-from experiments.shapley import can_convert_to_float
+from experiments.policy import can_convert_to_float
 
 
 def intervention_vs_distance(experiment, ci_factor=1.96, save_to_file=False):

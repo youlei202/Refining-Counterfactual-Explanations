@@ -52,6 +52,7 @@ class GLOBE_CE:
         self.name = self.dataset.name
         self.monotonicity = np.array(monotonicity) if monotonicity is not None else None
         self.features = np.array(list(self.dataset.features_tree))
+        print(self.features)
         self.n_f = len(self.features)
         self.feature_values = self.dataset.features[:-1]
 
