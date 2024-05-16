@@ -20,13 +20,27 @@ logging.getLogger("shap").setLevel(logging.WARNING)
 
 
 def max_weighted_rows(W, R):
-    N, P = R.shape
+    N, M = W.shape
+    _, P = R.shape
     Q = np.zeros((N, P))
-
     for i in range(N):
         max_weight_index = np.argmax(W[i, :])
         Q[i, :] = R[max_weight_index, :]
+    return Q
 
+
+def avg_weighted_rows(W, R):
+    N, M = W.shape
+    _, P = R.shape
+    Q = np.zeros((N, P))
+    for i in range(N):
+        weights = W[i, :]
+        # Normalize weights to ensure they sum to 1
+        normalized_weights = weights / np.sum(weights)
+        # Reshape to match R's rows for broadcasting
+        normalized_weights = normalized_weights.reshape(-1, 1)
+        # Compute the weighted sum
+        Q[i, :] = np.sum(normalized_weights * R, axis=0)
     return Q
 
 
@@ -173,10 +187,9 @@ class Benchmarking:
                                     intervention_indices, c_policy.shape
                                 )
 
-                                Q = max_weighted_rows(W=z_policy, R=X_counterfactual)
+                                Q = avg_weighted_rows(W=z_policy, R=X_counterfactual)
 
                                 X_intervention = X_factual.copy()
-
                                 if intervention_num > 0:
                                     # Set values at selected 2D indices
                                     values_from_Q = Q[i_indice, k_indice]

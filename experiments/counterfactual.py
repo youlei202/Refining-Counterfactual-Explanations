@@ -169,7 +169,7 @@ def compute_GlobeCE_counterfactuals(
     )
     globe_ce.sample(
         n_sample=sample_num,
-        magnitude=2,
+        magnitude=5,
         sparsity_power=1,  # magnitude is the fixed cost sampled at
         idxs=None,
         n_features=df_factual.shape[1],

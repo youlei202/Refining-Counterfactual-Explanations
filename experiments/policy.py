@@ -5,7 +5,7 @@ import numpy as np
 
 EPSILON = 1e-20
 SHAP_SAMPLE_SIZE = 10000
-# SHAP_SAMPLE_SIZE = 'auto'
+# SHAP_SAMPLE_SIZE = "auto"
 
 
 def can_convert_to_float(s):
@@ -26,7 +26,6 @@ def convert_matrix_to_policy(matrix):
 class CounterfactualUniformDistributionPolicy:
     def __init__(self, model, X_factual, X_counterfactual):
         self.model = model
-        assert X_factual.shape[0] == X_counterfactual.shape[0]
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
         self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
@@ -68,7 +67,6 @@ class TrainUniformDistributionPolicy:
 class CounterfactualSingleMatchingPolicy:
     def __init__(self, model, X_factual, X_counterfactual):
         self.model = model
-        assert X_factual.shape[0] == X_counterfactual.shape[0]
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
         self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
@@ -94,7 +92,6 @@ class CounterfactualSingleMatchingPolicy:
 class CounterfactualOptimalTransportPolicy:
     def __init__(self, model, X_factual, X_counterfactual, reg=0):
         self.model = model
-        assert X_factual.shape[0] == X_counterfactual.shape[0]
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
         self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
@@ -105,12 +102,12 @@ class CounterfactualOptimalTransportPolicy:
     def compute_policy(self):
         if self.reg <= 0:
             self.ot_plan = ot.emd(
-                np.ones(self.N) / self.N, np.ones(self.N) / self.N, self.ot_cost
+                np.ones(self.N) / self.N, np.ones(self.M) / self.M, self.ot_cost
             )
         else:
             self.ot_plan = ot.bregman.sinkhorn(
                 np.ones(self.N) / self.N,
-                np.ones(self.N) / self.N,
+                np.ones(self.M) / self.M,
                 self.ot_cost,
                 reg=self.reg,
                 numItermax=5000,
@@ -135,8 +132,6 @@ def compute_intervention_policy(
     X_counterfactual,
     shapley_method,
 ):
-    assert X_factual.shape[0] == X_counterfactual.shape[0]
-
     if shapley_method == "CF_UniformMatch":
         return CounterfactualUniformDistributionPolicy(
             model=model, X_factual=X_factual, X_counterfactual=X_counterfactual
