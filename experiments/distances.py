@@ -3,22 +3,31 @@ import pandas as pd
 from scipy.stats import gaussian_kde, entropy
 from scipy.special import kl_div
 import ot
+from sklearn.metrics.pairwise import rbf_kernel
 
 
-def gaussian_kernel(x, y, sigma=1.0):
-    """Compute the Gaussian kernel between x and y"""
-    return np.exp(-np.linalg.norm(x - y) ** 2 / (2 * sigma**2))
+def compute_mmd(y_s, y_t, gamma=1.0):
+    """MMD using RBF (Gaussian) kernel (i.e., k(x,y) = exp(-gamma * ||x-y||^2 / 2))
 
+    Arguments:
+        y_s {array-like} -- Source 1D array
+        y_t {array-like} -- Target 1D array
 
-def compute_mmd(y_s, y_t, kernel=gaussian_kernel):
-    n = y_s.shape[0]
-    m = y_t.shape[0]
+    Keyword Arguments:
+        gamma {float} -- Kernel parameter (default: {1.0})
 
-    ss = np.sum([kernel(y_s[i], y_s[j]) for i in range(n) for j in range(n)])
-    tt = np.sum([kernel(y_t[i], y_t[j]) for i in range(m) for j in range(m)])
-    st = np.sum([kernel(y_s[i], y_t[j]) for i in range(n) for j in range(m)])
+    Returns:
+        float -- MMD value
+    """
+    # Reshape 1D arrays to 2D arrays with one feature
+    y_s = np.array(y_s).reshape(-1, 1)
+    y_t = np.array(y_t).reshape(-1, 1)
 
-    return ss / (n**2) + tt / (m**2) - 2 * st / (n * m)
+    XX = rbf_kernel(y_s, y_s, gamma)
+    YY = rbf_kernel(y_t, y_t, gamma)
+    XY = rbf_kernel(y_s, y_t, gamma)
+
+    return XX.mean() + YY.mean() - 2 * XY.mean()
 
 
 def compute_distance(y_s: np.array, y_t: np.array, distance_metric: str):

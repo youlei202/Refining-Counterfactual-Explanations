@@ -45,7 +45,7 @@ def intervention_vs_distance(experiment, ci_factor=1.96, save_to_file=False):
                         x_list,
                         y_means,
                         label=labels.mapping[shapley_method] + reg_str,
-                        marker="o",
+                        # marker="o",
                     )
                     axes[i].fill_between(
                         x_list, y_means - y_ci, y_means + y_ci, alpha=0.2

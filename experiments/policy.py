@@ -52,7 +52,13 @@ def A_values(W, R, method):
     return Q
 
 
-class Policy:
+class CounterfactualPolicy:
+    def __init__(self, model, X_factual, X_counterfactual):
+        self.model = model
+        self.X_factual = X_factual
+        self.X_counterfactual = X_counterfactual
+        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
+
     def policy_dict(self, shap_values, method):
         varphi = convert_matrix_to_policy(shap_values)
         p = convert_matrix_to_policy(np.full((self.N, self.M), fill_value=1))
@@ -60,20 +66,18 @@ class Policy:
         return {"varphi": varphi, "p": p, "q": q}
 
 
-class CounterfactualPolicy(Policy):
-    def __init__(self, model, X_factual, X_counterfactual):
-        self.model = model
-        self.X_factual = X_factual
-        self.X_counterfactual = X_counterfactual
-        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
-
-
-class TrainsetPolicy(Policy):
+class TrainsetPolicy:
     def __init__(self, model, X_factual, X_train):
         self.model = model
         self.X_factual = X_factual
         self.X_train = X_train
-        self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
+        self.N, self.M = self.X_factual.shape[0], self.X_train.shape[0]
+
+    def policy_dict(self, shap_values, method):
+        varphi = convert_matrix_to_policy(shap_values)
+        p = convert_matrix_to_policy(np.full((self.N, self.M), fill_value=1))
+        q = A_values(W=p, R=self.X_train, method=method)
+        return {"varphi": varphi, "p": p, "q": q}
 
 
 class CounterfactualUniformDistributionPolicy(CounterfactualPolicy):
