@@ -4,8 +4,8 @@ import ot
 import numpy as np
 
 EPSILON = 1e-20
-SHAP_SAMPLE_SIZE = 10000
-# SHAP_SAMPLE_SIZE = "auto"
+# SHAP_SAMPLE_SIZE = 10000
+SHAP_SAMPLE_SIZE = "auto"
 
 
 def COLA(X_factual, varphi, q, C, replace):
