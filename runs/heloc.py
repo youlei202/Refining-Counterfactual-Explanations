@@ -1,8 +1,9 @@
-from dataset import GermanCreditDataset
+from dataset import CompasDataset
 from experiments import Benchmarking
 from utils.logger_config import setup_logger
 from models.wrapper import PYTORCH_MODELS
 import warnings
+from dataset import dataset_loader
 
 from experiments.counterfactual import *
 from sklearn.ensemble import (
@@ -26,31 +27,38 @@ import pickle
 warnings.filterwarnings("ignore")
 logger = setup_logger()
 
-
 def main():
-    dataset = GermanCreditDataset()
+
+    name = 'heloc'
+    dataset_ares = dataset_loader(name, data_path='data/', dropped_features=[], n_bins=None)
+
+    dataset = HelocDataset(dataset_ares=dataset_ares)
+
     input_dim = dataset.get_dataframe().shape[1] - 1
     seed = 0
+    np.random.seed(seed)
     torch.manual_seed(seed)
 
     counterfactual_algorithms = [
-        # "DiCE",
-        # "DisCount",
-        "KNN",
+        # 'DiCE',
+        # 'DisCount',
+        # 'GlobeCE',
+        # 'AReS',
+        'KNN',
     ]
 
     experiment = Benchmarking(
         dataset=dataset,
         models=[
-            (BaggingClassifier(), "sklearn"),
-            # (GaussianProcessClassifier(), "sklearn"),
-            # (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
-            # (PyTorchDNN(input_dim=input_dim), "PYT"),
-            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), "PYT"),
-            # (PyTorchLinearSVM(input_dim=input_dim), "PYT"),
-            # (RandomForestClassifier(), "sklearn"),
-            # (GradientBoostingClassifier(), "sklearn"),
-            # (AdaBoostClassifier(), "sklearn"),
+            (BaggingClassifier(), 'sklearn'), 
+            # (GaussianProcessClassifier(),'sklearn'),
+            # (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
+            # (PyTorchDNN(input_dim=input_dim), 'PYT'),
+            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
+            # (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
+            # (RandomForestClassifier(), 'sklearn'), 
+            # (GradientBoostingClassifier(), 'sklearn'), 
+            # (AdaBoostClassifier(), 'sklearn'), 
         ],
         shapley_methods=[
             "Train_Distri",
@@ -60,51 +68,50 @@ def main():
             "CF_OTMatch",
         ],
         distance_metrics=[
-            "optimal_transport",
-            "mean_difference",
-            "median_difference",
-            "max_mean_discrepancy",
+            'optimal_transport',
+            'mean_difference',
+            'median_difference',
+            'max_mean_discrepancy',
         ],
-        md_baseline=False,
+        md_baseline = False
     )
 
     experiment.train_and_evaluate_models(random_state=seed)
     experiment.models_performance()
 
     logger.info("\n\n------Compute Counterfactuals------")
-    sample_num = 50
+    sample_num = 100
     model_counterfactuals = {}
     for model, model_name in zip(experiment.models, experiment.model_names):
         model_counterfactuals[model_name] = {}
 
         for algorithm in counterfactual_algorithms:
-            if algorithm == "DisCount" and model_name not in PYTORCH_MODELS:
-                logger.info(
-                    f"Skipping {algorithm} for {model_name} due to incompatability"
-                )
+            if algorithm == 'DisCount' and model_name not in PYTORCH_MODELS:
+                logger.info(f'Skipping {algorithm} for {model_name} due to incompatability')
                 continue
-            logger.info(f"Computing {model_name} counterfactuals with {algorithm}")
+            logger.info(f'Computing {model_name} counterfactuals with {algorithm}')
             function_name = f"compute_{algorithm}_counterfactuals"
             try:
                 func = globals()[function_name]
                 model_counterfactuals[model_name][algorithm] = func(
                     experiment.X_test,
-                    model=model,
-                    target_name=experiment.dataset.target_name,
-                    sample_num=sample_num,
+                    model = model,
+                    target_name = experiment.dataset.target_name,
+                    sample_num = sample_num,
                     experiment=experiment,
                 )
             except KeyError:
-                logger.info(f"Function {function_name} is not working.")
+                logger.info(f"Function {function_name} is not defined.")
 
-    logger.info("\n\n------Compute Action Policies------")
+
+    logger.info("\n\n------Compute Shapley Values------")
     experiment.compute_intervention_policies(
-        model_counterfactuals=model_counterfactuals,
-    )
+        model_counterfactuals=model_counterfactuals,Avalues_method='max'
+    );
 
     logger.info("\n\n------Evaluating Distance Performance Under Interventions------")
     experiment.evaluate_distance_performance_under_interventions(
-        intervention_num_list=[0, 10, 20, 30, 40, 50, 75, 100, 150, 200],
+        intervention_num_list=range(0,801,20),
         trials_num=100,
         replace=False,
     )
@@ -114,7 +121,6 @@ def main():
     with open(f"pickles/{dataset.name}_experiment.pickle", "wb") as output_file:
         pickle.dump(experiment, output_file)
 
-
 if __name__ == "__main__":
-    logger.info("German credit analysis started")
+    logger.info("Compas analysis started")
     main()

@@ -2,3 +2,5 @@
 *.pyc
 pictures
 pickles
+data/logs/*
+*.out

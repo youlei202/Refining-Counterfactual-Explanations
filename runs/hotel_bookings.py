@@ -35,8 +35,8 @@ def main():
     torch.manual_seed(seed)
 
     counterfactual_algorithms = [
-        "DiCE",
-        "DisCount",
+        # "DiCE",
+        # "DisCount",
         "KNN",
     ]
 
@@ -45,24 +45,20 @@ def main():
         models=[
             (BaggingClassifier(), "sklearn"),
             # (GaussianProcessClassifier(),'sklearn'),
-            (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
-            (PyTorchDNN(input_dim=input_dim), "PYT"),
-            (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), "PYT"),
-            (PyTorchLinearSVM(input_dim=input_dim), "PYT"),
-            (RandomForestClassifier(), "sklearn"),
-            (GradientBoostingClassifier(), "sklearn"),
-            (AdaBoostClassifier(), "sklearn"),
+            # (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
+            # (PyTorchDNN(input_dim=input_dim), "PYT"),
+            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), "PYT"),
+            # (PyTorchLinearSVM(input_dim=input_dim), "PYT"),
+            # (RandomForestClassifier(), "sklearn"),
+            # (GradientBoostingClassifier(), "sklearn"),
+            # (AdaBoostClassifier(), "sklearn"),
         ],
         shapley_methods=[
             "Train_Distri",
+            "Train_OTMatch",
             "CF_UniformMatch",
-            # "CF_ExactMatch",
             "CF_SingleMatch",
             "CF_OTMatch",
-            "CF_OTMatch_0.5",
-            # "CF_OTMatch_1.0",
-            # "CF_OTMatch_5.0",
-            # "CF_OTMatch_10.0",
         ],
         distance_metrics=[
             "optimal_transport",
