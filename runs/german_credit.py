@@ -106,7 +106,7 @@ def main():
 
     logger.info("\n\n------Evaluating Distance Performance Under Interventions------")
     experiment.evaluate_distance_performance_under_interventions(
-        intervention_num_list=[0, 10, 20, 30, 40, 50, 75, 100, 150, 200],
+        intervention_num_list=range(0,201,5),
         trials_num=100,
         replace=False,
     )
