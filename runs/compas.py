@@ -42,8 +42,8 @@ def main():
     Avalues_method = "avg"
 
     counterfactual_algorithms = [
-        # 'DiCE',
-        # 'DisCount',
+        'DiCE',
+        'DisCount',
         # "GlobeCE",
         # 'AReS',
         'KNN',
@@ -53,14 +53,14 @@ def main():
         dataset=dataset,
         models=[
             (BaggingClassifier(), "sklearn"),
-            # (GaussianProcessClassifier(),'sklearn'),
-            # (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
-            # (PyTorchDNN(input_dim=input_dim), 'PYT'),
-            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
-            # (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
-            # (RandomForestClassifier(), 'sklearn'),
-            # (GradientBoostingClassifier(), 'sklearn'),
-            # (AdaBoostClassifier(), "sklearn"),
+            (GaussianProcessClassifier(),'sklearn'),
+            (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
+            (PyTorchDNN(input_dim=input_dim), 'PYT'),
+            (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
+            (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
+            (RandomForestClassifier(), 'sklearn'),
+            (GradientBoostingClassifier(), 'sklearn'),
+            (AdaBoostClassifier(), "sklearn"),
         ],
         shapley_methods=[
             "Train_Distri",
