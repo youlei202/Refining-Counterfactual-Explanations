@@ -95,14 +95,18 @@ class TrainUniformDistributionPolicy(TrainsetPolicy):
 
 
 class TrainOptimalTransportPolicy(TrainsetPolicy):
-    def __init__(self, model, X_factual, X_train, X_counterfactual, reg=0, method="avg"):
+    def __init__(
+        self, model, X_factual, X_train, X_counterfactual, reg=0, method="avg"
+    ):
         super().__init__(
             model=model,
             X_factual=X_factual,
             X_train=X_train,
             X_counterfactual=X_counterfactual,
         )
+        self.reg = reg
         self.method = method
+        self.ot_cost = ot.dist(self.X_factual, self.X_counterfactual, p=2)
 
     def compute_policy(self):
         if self.reg <= 0:
