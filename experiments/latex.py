@@ -6,16 +6,28 @@ class TikzPlotGenerator:
     def __init__(self, data):
         self.data = data
         self.colors = [
+            "cyan",
             "blue",
-            "green",
             "orange",
             "red",
-            "cyan",
+            "green",
             "magenta",
             "yellow",
             "purple",
             "brown",
             "black",
+        ]
+        self.line_styles = [
+            "dashed",
+            "dotted",
+            "dashdotted",
+            "solid",
+            "densely dashed",
+            "densely dotted",
+            "loosely dashed",
+            "loosely dotted",
+            "loosely dashdotted",
+            "densely dashdotted",
         ]
 
     def compute_statistics(self, y_lists):
@@ -38,9 +50,9 @@ class TikzPlotGenerator:
     legend pos=south west,
     legend style={
         draw=none,
-    font=\scriptsize,
+        font=\\scriptsize,
         legend image code/.code={
-            \draw[mark repeat=2,mark phase=2]
+            \\draw[mark repeat=2,mark phase=2]
                 plot coordinates {
                     (0cm,0cm)
                     (0.2cm,0cm) % Adjust the length here
@@ -49,7 +61,7 @@ class TikzPlotGenerator:
     },
     legend cell align={left},
     grid=major,
-    title={SVM, $\A_{\\text{CE}}=$GlobeCE},
+    % title={SVM, $\\A_{\\text{CE}}=$GlobeCE},
     title style={font=\\footnotesize, yshift=-1ex}, 
     font=\\footnotesize,
     % Increase margin of x and y tick labels
@@ -69,16 +81,17 @@ class TikzPlotGenerator:
                 y_mean, y_lower, y_upper = self.compute_statistics(y_lists)
 
                 color = self.colors[color_idx % len(self.colors)]
+                line_style = self.line_styles[color_idx % len(self.line_styles)]
                 color_idx += 1
 
                 sanitized_method = self.sanitize_name(method)
                 sanitized_metric = self.sanitize_name(metric)
 
-                plot_code += f"\\addplot[name path={sanitized_method}-{sanitized_metric}-line, {color}, thick] coordinates {{\n"
+                plot_code += f"\\addplot[name path={sanitized_method}-{sanitized_metric}-line, {color}, {line_style}] coordinates {{\n"
                 for x, y in zip(x_list, y_mean):
                     plot_code += f"    ({x}, {y})\n"
                 plot_code += "};\n"
-                plot_code += f"\\addlegendentry{{{sanitized_method}}}\n"
+                plot_code += f"%\\addlegendentry{{{sanitized_method}}}\n"
 
                 plot_code += f"\\addplot[name path={sanitized_method}-{sanitized_metric}-upper, {color}, opacity=0.3, forget plot] coordinates {{\n"
                 for x, y in zip(x_list, y_upper):
