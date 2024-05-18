@@ -95,7 +95,7 @@ class TrainUniformDistributionPolicy(TrainsetPolicy):
 
 
 class TrainOptimalTransportPolicy(TrainsetPolicy):
-    def __init__(self, model, X_factual, X_train, X_counterfactual, method="avg"):
+    def __init__(self, model, X_factual, X_train, X_counterfactual, reg=0, method="avg"):
         super().__init__(
             model=model,
             X_factual=X_factual,

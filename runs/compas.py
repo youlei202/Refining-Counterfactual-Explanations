@@ -39,6 +39,7 @@ def main():
     input_dim = dataset.get_dataframe().shape[1] - 1
     seed = 1
     torch.manual_seed(seed)
+    Avalues_method = "avg"
 
     counterfactual_algorithms = [
         # 'DiCE',
@@ -109,6 +110,7 @@ def main():
     logger.info("\n\n------Compute Shapley Values------")
     experiment.compute_intervention_policies(
         model_counterfactuals=model_counterfactuals,
+        Avalues_method=Avalues_method,
     )
 
     logger.info("\n\n------Evaluating Distance Performance Under Interventions------")
