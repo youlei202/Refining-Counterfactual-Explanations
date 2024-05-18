@@ -43,7 +43,7 @@ def main():
     experiment = Benchmarking(
         dataset=dataset,
         models=[
-            (BaggingClassifier(), "sklearn"),
+            # (BaggingClassifier(), "sklearn"),
             (GaussianProcessClassifier(), "sklearn"),
             (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
             (PyTorchDNN(input_dim=input_dim), "PYT"),
@@ -57,7 +57,7 @@ def main():
             "Train_Distri",
             "Train_OTMatch",
             "CF_UniformMatch",
-            "CF_SingleMatch",
+            "CF_RandomMatch",
             "CF_OTMatch",
         ],
         distance_metrics=[
