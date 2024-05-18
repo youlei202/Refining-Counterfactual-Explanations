@@ -26,8 +26,8 @@
 #BSUB -N
 ### -- Specify the output and error file. %J is the job-id --
 ### -- -o and -e mean append, -oo and -eo mean overwrite --
-#BSUB -oo data/cardio/mlp/logs/std.out
-#BSUB -eo data/cardio/mlp/logs/std.err
+#BSUB -oo data/logs/german_credit_std.out
+#BSUB -eo data/logs/german_credit_std.err
 # -- end of LSF options --
 
 
