@@ -236,7 +236,7 @@ def compute_intervention_policy(
             X_train=X_train,
             X_counterfactual=X_counterfactual,
             method=Avalues_method,
-        )
+        ).compute_policy()
     elif shapley_method == "CF_SingleMatch":
         return CounterfactualSingleMatchingPolicy(
             model=model,
