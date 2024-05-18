@@ -103,7 +103,7 @@ def main():
                 logger.info(f"Function {function_name} is not defined.")
 
     logger.info("\n\n------Compute Shapley Values------")
-    experiment.compute_shapley_values(
+    experiment.compute_intervention_policies(
         model_counterfactuals=model_counterfactuals,
     )
 

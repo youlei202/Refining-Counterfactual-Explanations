@@ -34,5 +34,6 @@
 module load pandas/1.4.1-python-3.9.11 
 module load scipy/1.7.3-python-3.9.11
 module load python3/3.9.11
+module load gurobipy/gurobi-9.5.2-python-3.9.11 
 
 python3 -m runs.hotel_bookings
