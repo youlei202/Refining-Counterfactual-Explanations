@@ -52,31 +52,80 @@ def A_values(W, R, method):
     return Q
 
 
-class CounterfactualPolicy:
+class Policy:
     def __init__(self, model, X_factual, X_counterfactual):
         self.model = model
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
         self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
 
-    def policy_dict(self, shap_values, method):
+
+class CounterfactualPolicy(Policy):
+    def __init__(self, model, X_factual, X_counterfactual):
+        super().__init__(model, X_factual, X_counterfactual)
+
+
+class TrainsetPolicy(Policy):
+    def __init__(self, model, X_factual, X_train, X_counterfactual):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.X_train_sampled = X_train.sample(self.M).values
+
+
+class TrainUniformDistributionPolicy(TrainsetPolicy):
+    def __init__(self, model, X_factual, X_train, X_counterfactual, method="avg"):
+        super().__init__(
+            model=model,
+            X_factual=X_factual,
+            X_train=X_train,
+            X_counterfactual=X_counterfactual,
+        )
+        self.method = method
+
+    def compute_policy(self):
+        p = get_uniform_distribution_matrix(self.N, self.M)
+
+        shap_values = shap.KernelExplainer(
+            self.model.predict_proba, self.X_train_sampled
+        ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
+
         varphi = convert_matrix_to_policy(shap_values)
-        p = convert_matrix_to_policy(np.full((self.N, self.M), fill_value=1))
-        q = A_values(W=p, R=self.X_counterfactual, method=method)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
         return {"varphi": varphi, "p": p, "q": q}
 
 
-class TrainsetPolicy:
-    def __init__(self, model, X_factual, X_train):
-        self.model = model
-        self.X_factual = X_factual
-        self.X_train = X_train
-        self.N, self.M = self.X_factual.shape[0], self.X_train.shape[0]
+class TrainOptimalTransportPolicy(TrainsetPolicy):
+    def __init__(self, model, X_factual, X_train, X_counterfactual, method="avg"):
+        super().__init__(
+            model=model,
+            X_factual=X_factual,
+            X_train=X_train,
+            X_counterfactual=X_counterfactual,
+        )
+        self.method = method
 
-    def policy_dict(self, shap_values, method):
+    def compute_policy(self):
+        if self.reg <= 0:
+            probs_matrix = ot.emd(
+                np.ones(self.N) / self.N, np.ones(self.M) / self.M, self.ot_cost
+            )
+        else:
+            probs_matrix = ot.bregman.sinkhorn(
+                np.ones(self.N) / self.N,
+                np.ones(self.M) / self.M,
+                self.ot_cost,
+                reg=self.reg,
+                numItermax=5000,
+            )
+        p = convert_matrix_to_policy(probs_matrix)
+
+        shap_values = shap.KernelExplainer(
+            self.model.predict_proba, self.X_train_sampled
+        ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
+
         varphi = convert_matrix_to_policy(shap_values)
-        p = convert_matrix_to_policy(np.full((self.N, self.M), fill_value=1))
-        q = A_values(W=p, R=self.X_train, method=method)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
         return {"varphi": varphi, "p": p, "q": q}
 
 
@@ -86,25 +135,19 @@ class CounterfactualUniformDistributionPolicy(CounterfactualPolicy):
         self.method = method
 
     def compute_policy(self):
-        shap_values = shap.KernelExplainer(
-            self.model.predict_proba, self.X_counterfactual
-        ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
+        p = get_uniform_distribution_matrix(self.N, self.M)
 
-        return self.policy_dict(shap_values, self.method)
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
 
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
-class TrainUniformDistributionPolicy(TrainsetPolicy):
-    def __init__(self, model, X_factual, X_train, method="avg"):
-        super().__init__(model, X_factual, X_train)
-        self.method = method
-
-    def compute_policy(self):
-        X_train_sampled = self.X_train.sample(self.N).values
-        shap_values = shap.KernelExplainer(
-            self.model.predict_proba, X_train_sampled
-        ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
-
-        return self.policy_dict(shap_values, self.method)
+        return {"varphi": varphi, "p": p, "q": q}
 
 
 class CounterfactualSingleMatchingPolicy(CounterfactualPolicy):
@@ -113,18 +156,19 @@ class CounterfactualSingleMatchingPolicy(CounterfactualPolicy):
         self.method = method
 
     def compute_policy(self):
-        self.probs = np.zeros((self.N, self.M))
-        # Assign 1/N to a random position in each row
-        for i in range(self.N):
-            self.probs[i, np.random.randint(0, self.M)] = 1 / self.N
+        p = get_one_one_distribution_matrix(self.N, self.M)
+
         shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
             self.X_factual,
             self.X_counterfactual,
-            joint_probs=self.probs,
+            joint_probs=p,
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        return self.policy_dict(shap_values, self.method)
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
 
 
 class CounterfactualOptimalTransportPolicy(CounterfactualPolicy):
@@ -136,25 +180,30 @@ class CounterfactualOptimalTransportPolicy(CounterfactualPolicy):
 
     def compute_policy(self):
         if self.reg <= 0:
-            self.ot_plan = ot.emd(
+            probs_matrix = ot.emd(
                 np.ones(self.N) / self.N, np.ones(self.M) / self.M, self.ot_cost
             )
         else:
-            self.ot_plan = ot.bregman.sinkhorn(
+            probs_matrix = ot.bregman.sinkhorn(
                 np.ones(self.N) / self.N,
                 np.ones(self.M) / self.M,
                 self.ot_cost,
                 reg=self.reg,
                 numItermax=5000,
             )
+        p = convert_matrix_to_policy(probs_matrix)
+
         shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
             self.X_factual,
             self.X_counterfactual,
-            joint_probs=self.ot_plan,
+            joint_probs=p,
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        return self.policy_dict(shap_values, self.method)
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
 
 
 def compute_intervention_policy(
@@ -163,18 +212,37 @@ def compute_intervention_policy(
     X_factual,
     X_counterfactual,
     shapley_method,
+    Avalues_method,
 ):
     if shapley_method == "CF_UniformMatch":
         return CounterfactualUniformDistributionPolicy(
-            model=model, X_factual=X_factual, X_counterfactual=X_counterfactual
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
         ).compute_policy()
     elif shapley_method == "Train_Distri":
         return TrainUniformDistributionPolicy(
-            model=model, X_factual=X_factual, X_train=X_train
+            model=model,
+            X_factual=X_factual,
+            X_train=X_train,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
         ).compute_policy()
+    elif shapley_method == "Train_OTMatch":
+        return TrainOptimalTransportPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_train=X_train,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        )
     elif shapley_method == "CF_SingleMatch":
         return CounterfactualSingleMatchingPolicy(
-            model=model, X_factual=X_factual, X_counterfactual=X_counterfactual
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
         ).compute_policy()
     else:
         shapley_method_string_list = shapley_method.split("_")
@@ -190,6 +258,7 @@ def compute_intervention_policy(
                 X_factual=X_factual,
                 X_counterfactual=X_counterfactual,
                 reg=reg,
+                method=Avalues_method,
             ).compute_policy()
         else:
             raise NotImplementedError
@@ -201,6 +270,18 @@ def can_convert_to_float(s):
         return True
     except ValueError:
         return False
+
+
+def get_uniform_distribution_matrix(N, M):
+    uniform_matrix = np.full((N, M), fill_value=1)
+    return convert_matrix_to_policy(uniform_matrix)
+
+
+def get_one_one_distribution_matrix(N, M):
+    probs_matrix = np.zeros((N, M))
+    for i in range(N):
+        probs_matrix[i, np.random.randint(0, M)] = 1 / N
+    return convert_matrix_to_policy(probs_matrix)
 
 
 def convert_matrix_to_policy(matrix):
