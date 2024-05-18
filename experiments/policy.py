@@ -175,6 +175,27 @@ class CounterfactualSingleMatchingPolicy(CounterfactualPolicy):
         return {"varphi": varphi, "p": p, "q": q}
 
 
+class CounterfactualRandomMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def compute_policy(self):
+        p = get_random_distribution_matrix(self.N, self.M)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
 class CounterfactualOptimalTransportPolicy(CounterfactualPolicy):
     def __init__(self, model, X_factual, X_counterfactual, reg=0, method="avg"):
         super().__init__(model, X_factual, X_counterfactual)
@@ -248,6 +269,13 @@ def compute_intervention_policy(
             X_counterfactual=X_counterfactual,
             method=Avalues_method,
         ).compute_policy()
+    elif shapley_method == "CF_RandomMatch":
+        return CounterfactualRandomMatchingPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
     else:
         shapley_method_string_list = shapley_method.split("_")
         entropic_ot = can_convert_to_float(shapley_method_string_list[-1])
@@ -285,6 +313,11 @@ def get_one_one_distribution_matrix(N, M):
     probs_matrix = np.zeros((N, M))
     for i in range(N):
         probs_matrix[i, np.random.randint(0, M)] = 1 / N
+    return convert_matrix_to_policy(probs_matrix)
+
+
+def get_random_distribution_matrix(N, M):
+    probs_matrix = np.random.rand(N, M)
     return convert_matrix_to_policy(probs_matrix)
 
 
