@@ -46,7 +46,7 @@ class TikzPlotGenerator:
         plot_code = """
 \\begin{tikzpicture}
 \\begin{axis}[
-    width=4.4cm, height=4.5cm,
+    width=4.4cm, height=3.65cm,
     legend pos=south west,
     legend style={
         draw=none,
@@ -58,6 +58,8 @@ class TikzPlotGenerator:
                     (0.2cm,0cm) % Adjust the length here
                 };
         },
+        inner xsep=0pt, % Adjust inner x separation
+        inner ysep=0pt  % Adjust inner y separation
     },
     legend cell align={left},
     grid=major,

@@ -28,6 +28,7 @@ class Benchmarking:
         shapley_methods,
         distance_metrics,
         md_baseline=True,
+        Avalues_method="avg",
     ):
         self.unwrapped_models = models
 
@@ -77,6 +78,7 @@ class Benchmarking:
     def compute_intervention_policies(
         self,
         model_counterfactuals,
+        Avalues_method,
     ):
         self.policies = {}
         self.model_counterfactuals = model_counterfactuals
@@ -102,6 +104,7 @@ class Benchmarking:
                             X_factual=X_factual,
                             X_counterfactual=X_counterfactual,
                             shapley_method=shapley_method,
+                            Avalues_method=Avalues_method,
                         )
                     )
 
