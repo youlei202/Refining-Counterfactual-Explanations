@@ -1,8 +1,9 @@
-from dataset import HotelBookingsDataset
+from dataset import CompasDataset
 from experiments import Benchmarking
 from utils.logger_config import setup_logger
 from models.wrapper import PYTORCH_MODELS
 import warnings
+from dataset import dataset_loader
 
 from experiments.counterfactual import *
 from sklearn.ensemble import (
@@ -29,37 +30,43 @@ logger = setup_logger()
 
 def main():
 
-    dataset = HotelBookingsDataset()
+    name = "compas"
+    dataset_ares = dataset_loader(
+        name, data_path="data/", dropped_features=[], n_bins=None
+    )
+
+    dataset = CompasDataset(dataset_ares=dataset_ares)
     input_dim = dataset.get_dataframe().shape[1] - 1
-    seed = 0
+    seed = 1
     torch.manual_seed(seed)
 
     counterfactual_algorithms = [
-        "DiCE",
-        "DisCount",
-        "KNN",
+        # 'DiCE',
+        # 'DisCount',
+        "GlobeCE",
+        # 'AReS',
+        # 'KNN',
     ]
 
     experiment = Benchmarking(
         dataset=dataset,
         models=[
-            (BaggingClassifier(), "sklearn"),
             # (GaussianProcessClassifier(),'sklearn'),
-            (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
-            (PyTorchDNN(input_dim=input_dim), "PYT"),
-            (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), "PYT"),
-            (PyTorchLinearSVM(input_dim=input_dim), "PYT"),
-            (RandomForestClassifier(), "sklearn"),
-            (GradientBoostingClassifier(), "sklearn"),
-            (AdaBoostClassifier(), "sklearn"),
+            # (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
+            # (PyTorchDNN(input_dim=input_dim), 'PYT'),
+            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
+            # (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
+            # (RandomForestClassifier(n_estimators=10), 'sklearn'),
+            # (GradientBoostingClassifier(n_estimators=10), 'sklearn'),
+            (AdaBoostClassifier(n_estimators=10), "sklearn"),
         ],
         shapley_methods=[
-            "Train_Distri",
+            # "Train_Distri",
             "CF_UniformMatch",
             # "CF_ExactMatch",
             "CF_SingleMatch",
             "CF_OTMatch",
-            "CF_OTMatch_0.5",
+            # "CF_OTMatch_0.5",
             # "CF_OTMatch_1.0",
             # "CF_OTMatch_5.0",
             # "CF_OTMatch_10.0",
@@ -77,7 +84,7 @@ def main():
     experiment.models_performance()
 
     logger.info("\n\n------Compute Counterfactuals------")
-    sample_num = 50
+    sample_num = 800
     model_counterfactuals = {}
     for model, model_name in zip(experiment.models, experiment.model_names):
         model_counterfactuals[model_name] = {}
@@ -100,18 +107,16 @@ def main():
                     experiment=experiment,
                 )
             except KeyError:
-                logger.info(f"Function {function_name} is not defined.")
+                print(f"Function {function_name} is not defined.")
 
     logger.info("\n\n------Compute Shapley Values------")
-    experiment.compute_shapley_values(
+    experiment.compute_intervention_policies(
         model_counterfactuals=model_counterfactuals,
     )
 
     logger.info("\n\n------Evaluating Distance Performance Under Interventions------")
     experiment.evaluate_distance_performance_under_interventions(
-        intervention_num_list=[0, 50, 100, 150, 200, 300, 400],
-        trials_num=100,
-        replace=False,
+        intervention_num_list=range(0, 101, 5), trials_num=20, replace=False
     )
 
     # plotting.intervention_vs_distance(experiment, save_to_file=False)
@@ -121,5 +126,5 @@ def main():
 
 
 if __name__ == "__main__":
-    logger.info("Hotel bookings analysis started")
+    logger.info("Compas analysis started")
     main()

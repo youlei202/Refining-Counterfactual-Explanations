@@ -7,7 +7,7 @@
 ### –- specify queue --
 #BSUB -q hpc
 ### -- set the job Name --
-#BSUB -J hotel_bookings
+#BSUB -J compas
 ### -- ask for number of cores (default: 1) --
 #BSUB -n 4
 ### -- Select the resources: 1 gpu in exclusive process mode --
@@ -26,8 +26,8 @@
 #BSUB -N
 ### -- Specify the output and error file. %J is the job-id --
 ### -- -o and -e mean append, -oo and -eo mean overwrite --
-#BSUB -oo data/logs/hotel_bookings_std.out
-#BSUB -eo data/logs/hotel_bookings_std.err
+#BSUB -oo data/logs/compas_std.out
+#BSUB -eo data/logs/compas_std.err
 # -- end of LSF options --
 
 
@@ -35,4 +35,4 @@ module load pandas/1.4.1-python-3.9.11
 module load scipy/1.7.3-python-3.9.11
 module load python3/3.9.11
 
-python3 -m runs.hotel_bookings
+python3 -m runs.compas
