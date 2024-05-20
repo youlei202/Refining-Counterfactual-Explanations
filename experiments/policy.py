@@ -196,6 +196,28 @@ class CounterfactualRandomMatchingPolicy(CounterfactualPolicy):
         return {"varphi": varphi, "p": p, "q": q}
 
 
+class CounterfactualExactMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+        assert self.N == self.M
+
+    def compute_policy(self):
+        p = get_exact_one_one_matrix(self.N)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
 class CounterfactualOptimalTransportPolicy(CounterfactualPolicy):
     def __init__(self, model, X_factual, X_counterfactual, reg=0, method="avg"):
         super().__init__(model, X_factual, X_counterfactual)
@@ -262,8 +284,8 @@ def compute_intervention_policy(
             X_counterfactual=X_counterfactual,
             method=Avalues_method,
         ).compute_policy()
-    elif shapley_method == "CF_SingleMatch":
-        return CounterfactualSingleMatchingPolicy(
+    elif shapley_method == "CF_ExactMatch":
+        return CounterfactualExactMatchingPolicy(
             model=model,
             X_factual=X_factual,
             X_counterfactual=X_counterfactual,
@@ -307,6 +329,11 @@ def can_convert_to_float(s):
 def get_uniform_distribution_matrix(N, M):
     uniform_matrix = np.full((N, M), fill_value=1)
     return convert_matrix_to_policy(uniform_matrix)
+
+
+def get_exact_one_one_matrix(N):
+    eye_matrix = np.eye(N) / N
+    return convert_matrix_to_policy(eye_matrix)
 
 
 def get_one_one_distribution_matrix(N, M):
