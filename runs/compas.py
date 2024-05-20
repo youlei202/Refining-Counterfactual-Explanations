@@ -19,6 +19,8 @@ from models import (
     PyTorchRBFNet,
     PyTorchLogisticRegression,
 )
+from lightgbm import LGBMClassifier
+from xgboost import XGBClassifier
 
 from sklearn.gaussian_process import GaussianProcessClassifier
 from experiments import plotting
@@ -54,6 +56,7 @@ def main():
         models=[
             # (BaggingClassifier(), "sklearn"),
             # (GaussianProcessClassifier(),'sklearn'),
+            (XGBClassifier(), 'sklearn'),
             (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
             (PyTorchDNN(input_dim=input_dim), 'PYT'),
             (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
