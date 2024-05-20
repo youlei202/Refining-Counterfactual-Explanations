@@ -91,6 +91,7 @@ def compute_DisCount_counterfactuals(
     r=1,
     max_iter=50,
     tau=1e3,
+    silent=False,
 ):
     indices = get_factual_indices(X_test, model, target_name, sample_num)
     df_factual = X_test.loc[indices]
@@ -110,7 +111,9 @@ def compute_DisCount_counterfactuals(
         delta=delta,
     )
 
-    discount_explainer.optimize(U_1=U_1, U_2=U_2, l=l, r=r, max_iter=max_iter, tau=tau)
+    discount_explainer.optimize(
+        U_1=U_1, U_2=U_2, l=l, r=r, max_iter=max_iter, tau=tau, silent=silent
+    )
     df_counterfactual = (
         (
             pd.DataFrame(
@@ -169,10 +172,11 @@ def compute_GlobeCE_counterfactuals(
     )
     globe_ce.sample(
         n_sample=sample_num,
-        magnitude=5,
+        magnitude=2,
         sparsity_power=1,  # magnitude is the fixed cost sampled at
         idxs=None,
-        n_features=df_factual.shape[1],
+        n_features=5,  # For compas
+        # n_features=df_factual.shape[1],
         disable_tqdm=False,  # 2 random features chosen at each sample, no sparsity smoothing (p=1)
         plot=False,
         seed=None,
