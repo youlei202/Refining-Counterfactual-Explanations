@@ -18,23 +18,23 @@ class TikzPlotGenerator:
             "black",
         ]
         self.line_styles = [
-            "dashed",
-            "dotted",
-            "dashdotted",
-            "densely dashed",
             "solid",
-            "densely dotted",
-            "loosely dashed",
-            "loosely dotted",
-            "loosely dashdotted",
-            "densely dashdotted",
+            "solid",
+            "solid",
+            "solid",
+            "solid",
+            "solid",
+            "solid",
+            "solid",
+            "solid",
+            "solid",
         ]
 
     def compute_statistics(self, y_lists):
         y_array = np.array(y_lists)
         y_mean = np.mean(y_array, axis=0)
         y_sem = np.std(y_array, axis=0) / np.sqrt(y_array.shape[0])
-        confidence_level = 1.96  # for 95% confidence interval
+        confidence_level = 3.291  # for 99.9% confidence interval
         y_lower = y_mean - confidence_level * y_sem
         y_upper = y_mean + confidence_level * y_sem
         return y_mean, y_lower, y_upper
@@ -46,16 +46,16 @@ class TikzPlotGenerator:
         plot_code = """
 \\begin{tikzpicture}
 \\begin{axis}[
-    width=4.4cm, height=3.65cm,
+    width=4.4cm, height=3.6cm,
     legend pos=south west,
     legend style={
         draw=none,
         font=\\scriptsize,
         legend image code/.code={
-            \\draw[mark repeat=2,mark phase=2]
+            \draw[mark repeat=2,mark phase=2]
                 plot coordinates {
                     (0cm,0cm)
-                    (0.2cm,0cm) % Adjust the length here
+                    (0.4cm,0cm) % Adjust the length here
                 };
         },
         inner xsep=0pt, % Adjust inner x separation
