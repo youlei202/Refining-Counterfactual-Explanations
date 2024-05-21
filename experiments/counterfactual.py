@@ -11,7 +11,7 @@ import dice_ml
 
 
 FACTUAL_CLASS = 1
-SHUFFLE_COUNTERFACTUAL = False
+SHUFFLE_COUNTERFACTUAL = True
 
 
 def get_factual_indices(X_test, model, target_name, sample_num):
