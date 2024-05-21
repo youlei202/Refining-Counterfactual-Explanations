@@ -19,6 +19,8 @@ from models import (
     PyTorchRBFNet,
     PyTorchLogisticRegression,
 )
+from lightgbm import LGBMClassifier
+from xgboost import XGBClassifier
 
 from sklearn.gaussian_process import GaussianProcessClassifier
 from experiments import plotting
@@ -37,35 +39,37 @@ def main():
 
     dataset = CompasDataset(dataset_ares=dataset_ares)
     input_dim = dataset.get_dataframe().shape[1] - 1
-    seed = 1
+    seed = 0
     torch.manual_seed(seed)
+    Avalues_method = "avg"
 
     counterfactual_algorithms = [
         # 'DiCE',
         # 'DisCount',
         # "GlobeCE",
-        # 'AReS',
-        'KNN',
+        'AReS',
+        # 'KNN',
     ]
 
     experiment = Benchmarking(
         dataset=dataset,
         models=[
             (BaggingClassifier(), "sklearn"),
-            # (GaussianProcessClassifier(),'sklearn'),
-            # (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
-            # (PyTorchDNN(input_dim=input_dim), 'PYT'),
-            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
-            # (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
-            # (RandomForestClassifier(), 'sklearn'),
-            # (GradientBoostingClassifier(), 'sklearn'),
-            # (AdaBoostClassifier(), "sklearn"),
+            (GaussianProcessClassifier(),'sklearn'),
+            (XGBClassifier(), 'sklearn'),
+            (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
+            (PyTorchDNN(input_dim=input_dim), 'PYT'),
+            (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
+            (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
+            (RandomForestClassifier(), 'sklearn'),
+            (GradientBoostingClassifier(), 'sklearn'),
+            (AdaBoostClassifier(), "sklearn"),
         ],
         shapley_methods=[
             "Train_Distri",
             "Train_OTMatch",
             "CF_UniformMatch",
-            "CF_SingleMatch",
+            "CF_RandomMatch",
             "CF_OTMatch",
         ],
         distance_metrics=[
@@ -81,7 +85,7 @@ def main():
     experiment.models_performance()
 
     logger.info("\n\n------Compute Counterfactuals------")
-    sample_num = 100
+    sample_num = 800
     model_counterfactuals = {}
     for model, model_name in zip(experiment.models, experiment.model_names):
         model_counterfactuals[model_name] = {}
@@ -109,6 +113,7 @@ def main():
     logger.info("\n\n------Compute Shapley Values------")
     experiment.compute_intervention_policies(
         model_counterfactuals=model_counterfactuals,
+        Avalues_method=Avalues_method,
     )
 
     logger.info("\n\n------Evaluating Distance Performance Under Interventions------")

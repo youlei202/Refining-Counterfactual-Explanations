@@ -11,6 +11,7 @@ import dice_ml
 
 
 FACTUAL_CLASS = 1
+SHUFFLE_COUNTERFACTUAL = False
 
 
 def get_factual_indices(X_test, model, target_name, sample_num):
@@ -57,14 +58,11 @@ def compute_DiCE_counterfactuals(
         dice_df_list.append(cf_df)
 
     df_counterfactual = (
-        (
-            (pd.concat(dice_df_list).reset_index(drop=True).drop(target_name, axis=1))
-            .sample(frac=1)
-            .reset_index(drop=True)
-        )
-        .sample(frac=1)
-        .reset_index(drop=True)
+        pd.concat(dice_df_list).reset_index(drop=True).drop(target_name, axis=1)
     )
+    if SHUFFLE_COUNTERFACTUAL:
+        df_counterfactual = df_counterfactual.sample(frac=1).reset_index(drop=True)
+
     X_counterfactual = df_counterfactual.values
 
     y_counterfactual = model.predict(X_counterfactual)
@@ -91,6 +89,7 @@ def compute_DisCount_counterfactuals(
     r=1,
     max_iter=50,
     tau=1e3,
+    silent=False,
 ):
     indices = get_factual_indices(X_test, model, target_name, sample_num)
     df_factual = X_test.loc[indices]
@@ -110,20 +109,17 @@ def compute_DisCount_counterfactuals(
         delta=delta,
     )
 
-    discount_explainer.optimize(U_1=U_1, U_2=U_2, l=l, r=r, max_iter=max_iter, tau=tau)
-    df_counterfactual = (
-        (
-            pd.DataFrame(
-                discount_explainer.best_X.detach().numpy(),
-                columns=discount_explainer.explain_columns,
-                index=df_factual.index,
-            )
-            .sample(frac=1)
-            .reset_index(drop=True)
-        )
-        .sample(frac=1)
-        .reset_index(drop=True)
+    discount_explainer.optimize(
+        U_1=U_1, U_2=U_2, l=l, r=r, max_iter=max_iter, tau=tau, silent=silent
     )
+    df_counterfactual = pd.DataFrame(
+        discount_explainer.best_X.detach().numpy(),
+        columns=discount_explainer.explain_columns,
+        index=df_factual.index,
+    )
+    if SHUFFLE_COUNTERFACTUAL:
+        df_counterfactual = df_counterfactual.sample(frac=1).reset_index(drop=True)
+
     X_counterfactual = df_counterfactual.values
     y_counterfactual = model.predict(X_counterfactual)
 
@@ -169,10 +165,11 @@ def compute_GlobeCE_counterfactuals(
     )
     globe_ce.sample(
         n_sample=sample_num,
-        magnitude=5,
+        magnitude=2,
         sparsity_power=1,  # magnitude is the fixed cost sampled at
         idxs=None,
-        n_features=df_factual.shape[1],
+        n_features=5,  # For compas
+        # n_features=df_factual.shape[1],
         disable_tqdm=False,  # 2 random features chosen at each sample, no sparsity smoothing (p=1)
         plot=False,
         seed=None,
@@ -186,15 +183,9 @@ def compute_GlobeCE_counterfactuals(
         if globe_ce.n_categorical
         else globe_ce.x_aff + globe_ce.best_delta
     )
-    df_counterfactual = (
-        (
-            pd.DataFrame(X_counterfactual, columns=X_test.columns)
-            .sample(frac=1)
-            .reset_index(drop=True)
-        )
-        .sample(frac=1)
-        .reset_index(drop=True)
-    )
+    df_counterfactual = pd.DataFrame(X_counterfactual, columns=X_test.columns)
+    if SHUFFLE_COUNTERFACTUAL:
+        df_counterfactual = df_counterfactual.sample(frac=1).reset_index(drop=True)
 
     final_sample_num = min(df_factual.shape[0], df_counterfactual.shape[0])
 
@@ -246,15 +237,10 @@ def compute_AReS_counterfactuals(
     ares.select_groundset(s=200)
     ares.optimise_groundset(lams=lams, factor=1, print_updates=False, print_terms=False)
 
-    df_counterfactual = (
-        (
-            pd.DataFrame(ares.R.cfx_matrix[0], columns=X_test.columns)
-            .sample(frac=1)
-            .reset_index(drop=True)
-        )
-        .sample(frac=1)
-        .reset_index(drop=True)
-    )
+    df_counterfactual = pd.DataFrame(ares.R.cfx_matrix[0], columns=X_test.columns)
+    if SHUFFLE_COUNTERFACTUAL:
+        df_counterfactual = df_counterfactual.sample(frac=1).reset_index(drop=True)
+
     X_counterfactual = df_counterfactual.values
     y_counterfactual = model.predict(X_counterfactual)
 
@@ -293,14 +279,12 @@ def compute_KNN_counterfactuals(
 
     estimated = knn_explainer.get_multiple_counterfactuals(df_factual.values)
 
-    df_counterfactual = (
-        pd.DataFrame(
-            np.array(estimated).reshape(sample_num * n_neighbors, X_train.shape[1]),
-            columns=X_train.columns,
-        )
-        .sample(frac=1)
-        .reset_index(drop=True)
+    df_counterfactual = pd.DataFrame(
+        np.array(estimated).reshape(sample_num * n_neighbors, X_train.shape[1]),
+        columns=X_train.columns,
     )
+    if SHUFFLE_COUNTERFACTUAL:
+        df_counterfactual = df_counterfactual.sample(frac=1).reset_index(drop=True)
 
     final_sample_num = min(df_factual.shape[0], df_counterfactual.shape[0])
     X_factual = df_factual.sample(final_sample_num).values

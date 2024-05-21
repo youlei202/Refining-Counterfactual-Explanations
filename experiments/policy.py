@@ -4,8 +4,8 @@ import ot
 import numpy as np
 
 EPSILON = 1e-20
-SHAP_SAMPLE_SIZE = 10000
-# SHAP_SAMPLE_SIZE = "auto"
+# SHAP_SAMPLE_SIZE = 10000
+SHAP_SAMPLE_SIZE = "auto"
 
 
 def COLA(X_factual, varphi, q, C, replace):
@@ -95,14 +95,18 @@ class TrainUniformDistributionPolicy(TrainsetPolicy):
 
 
 class TrainOptimalTransportPolicy(TrainsetPolicy):
-    def __init__(self, model, X_factual, X_train, X_counterfactual, method="avg"):
+    def __init__(
+        self, model, X_factual, X_train, X_counterfactual, reg=0, method="avg"
+    ):
         super().__init__(
             model=model,
             X_factual=X_factual,
             X_train=X_train,
             X_counterfactual=X_counterfactual,
         )
+        self.reg = reg
         self.method = method
+        self.ot_cost = ot.dist(self.X_factual, self.X_counterfactual, p=2)
 
     def compute_policy(self):
         if self.reg <= 0:
@@ -157,6 +161,49 @@ class CounterfactualSingleMatchingPolicy(CounterfactualPolicy):
 
     def compute_policy(self):
         p = get_one_one_distribution_matrix(self.N, self.M)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
+class CounterfactualRandomMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def compute_policy(self):
+        p = get_random_distribution_matrix(self.N, self.M)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
+class CounterfactualExactMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+        assert self.N == self.M
+
+    def compute_policy(self):
+        p = get_exact_one_one_matrix(self.N)
 
         shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
             self.X_factual,
@@ -236,9 +283,16 @@ def compute_intervention_policy(
             X_train=X_train,
             X_counterfactual=X_counterfactual,
             method=Avalues_method,
-        )
-    elif shapley_method == "CF_SingleMatch":
-        return CounterfactualSingleMatchingPolicy(
+        ).compute_policy()
+    elif shapley_method == "CF_ExactMatch":
+        return CounterfactualExactMatchingPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
+    elif shapley_method == "CF_RandomMatch":
+        return CounterfactualRandomMatchingPolicy(
             model=model,
             X_factual=X_factual,
             X_counterfactual=X_counterfactual,
@@ -277,10 +331,20 @@ def get_uniform_distribution_matrix(N, M):
     return convert_matrix_to_policy(uniform_matrix)
 
 
+def get_exact_one_one_matrix(N):
+    eye_matrix = np.eye(N) / N
+    return convert_matrix_to_policy(eye_matrix)
+
+
 def get_one_one_distribution_matrix(N, M):
     probs_matrix = np.zeros((N, M))
     for i in range(N):
         probs_matrix[i, np.random.randint(0, M)] = 1 / N
+    return convert_matrix_to_policy(probs_matrix)
+
+
+def get_random_distribution_matrix(N, M):
+    probs_matrix = np.random.rand(N, M)
     return convert_matrix_to_policy(probs_matrix)
 
 

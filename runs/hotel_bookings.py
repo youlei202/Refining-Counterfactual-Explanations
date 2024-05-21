@@ -18,6 +18,8 @@ from models import (
     PyTorchRBFNet,
     PyTorchLogisticRegression,
 )
+from lightgbm import LGBMClassifier
+from xgboost import XGBClassifier
 
 from sklearn.gaussian_process import GaussianProcessClassifier
 from experiments import plotting
@@ -33,31 +35,33 @@ def main():
     input_dim = dataset.get_dataframe().shape[1] - 1
     seed = 0
     torch.manual_seed(seed)
+    Avalues_method = "max"
 
     counterfactual_algorithms = [
-        # "DiCE",
-        # "DisCount",
+        "DiCE",
+        "DisCount",
         "KNN",
     ]
 
     experiment = Benchmarking(
         dataset=dataset,
         models=[
-            (BaggingClassifier(), "sklearn"),
+            # (BaggingClassifier(), "sklearn"),
             # (GaussianProcessClassifier(),'sklearn'),
-            # (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
-            # (PyTorchDNN(input_dim=input_dim), "PYT"),
-            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), "PYT"),
-            # (PyTorchLinearSVM(input_dim=input_dim), "PYT"),
-            # (RandomForestClassifier(), "sklearn"),
-            # (GradientBoostingClassifier(), "sklearn"),
-            # (AdaBoostClassifier(), "sklearn"),
+            (XGBClassifier(), 'sklearn'),
+            (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
+            (PyTorchDNN(input_dim=input_dim), "PYT"),
+            (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), "PYT"),
+            (PyTorchLinearSVM(input_dim=input_dim), "PYT"),
+            (RandomForestClassifier(), "sklearn"),
+            (GradientBoostingClassifier(), "sklearn"),
+            (AdaBoostClassifier(), "sklearn"),
         ],
         shapley_methods=[
             "Train_Distri",
             "Train_OTMatch",
             "CF_UniformMatch",
-            "CF_SingleMatch",
+            "CF_RandomMatch",
             "CF_OTMatch",
         ],
         distance_metrics=[
@@ -101,11 +105,12 @@ def main():
     logger.info("\n\n------Compute Shapley Values------")
     experiment.compute_intervention_policies(
         model_counterfactuals=model_counterfactuals,
+        Avalues_method=Avalues_method,
     )
 
     logger.info("\n\n------Evaluating Distance Performance Under Interventions------")
     experiment.evaluate_distance_performance_under_interventions(
-        intervention_num_list=[0, 50, 100, 150, 200, 300, 400],
+        intervention_num_list=range(0,401,10),
         trials_num=100,
         replace=False,
     )
