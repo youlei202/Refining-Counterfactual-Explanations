@@ -128,6 +128,7 @@ class OptimalMeanDifference:
                 ):  # Gurobi returns the value of the variable, check if it's selected
                     self.a_solution[i, j] = 1
 
+        logger.info(f"C={C}, eta={self.eta.X}")
         return {"eta": self.eta.X}
 
     def display_g(self, colorbar=False):

@@ -161,7 +161,6 @@ class Benchmarking:
                                     replace=replace,
                                 )
                                 y_intervention = model.predict(Z_counterfactual)
-
                                 result = compute_distance(
                                     y_intervention, y_counterfactual, distance_metric
                                 )
@@ -185,13 +184,25 @@ class Benchmarking:
                     logger.info(
                         f"Computing optimal_mean_difference for ({model_name}, {algorithm})"
                     )
+                    X_factual = self.model_counterfactuals[model_name][algorithm][
+                        "X_factual"
+                    ]
+                    X_counterfactual = self.model_counterfactuals[model_name][
+                        algorithm
+                    ]["X"]
+                    optimal_mean_difference = OptimalMeanDifference(
+                        model, X_factual, X_counterfactual
+                    )
                     for intervention_num in tqdm(intervention_num_list):
-                        optimal_mean_difference = OptimalMeanDifference(
-                            model, X_factual, X_counterfactual
-                        )
-                        eta = optimal_mean_difference.solve_problem(C=intervention_num)[
-                            "eta"
-                        ]
+                        if (
+                            len(trial_result["y_list"]) <= 0
+                            or trial_result["y_list"][-1] > 1e-4
+                        ):
+                            eta = optimal_mean_difference.solve_problem(
+                                C=intervention_num
+                            )["eta"]
+                        else:
+                            eta = 0
                         trial_result["y_list"].append(eta)
 
                     self.distance_results[model_name][algorithm]["optimality"] = {}
