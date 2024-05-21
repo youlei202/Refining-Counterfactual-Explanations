@@ -1,4 +1,4 @@
-from dataset import GermanCreditDataset
+from dataset import HotelBookingsDataset
 from experiments import Benchmarking
 from utils.logger_config import setup_logger
 from models.wrapper import PYTORCH_MODELS
@@ -30,7 +30,8 @@ logger = setup_logger()
 
 
 def main():
-    dataset = GermanCreditDataset()
+
+    dataset = HotelBookingsDataset()
     input_dim = dataset.get_dataframe().shape[1] - 1
     seed = 0
     torch.manual_seed(seed)
@@ -38,7 +39,7 @@ def main():
 
     counterfactual_algorithms = [
         "DiCE",
-        # "DisCount",
+        "DisCount",
         "KNN",
     ]
 
@@ -46,9 +47,9 @@ def main():
         dataset=dataset,
         models=[
             # (BaggingClassifier(), "sklearn"),
+            # (GaussianProcessClassifier(),'sklearn'),
             (XGBClassifier(), 'sklearn'),
-            # (GaussianProcessClassifier(), "sklearn"),
-            (LGBMClassifier(), 'sklearn'),
+            (LGBMClassifier(),'sklearn'),
             (PyTorchLogisticRegression(input_dim=input_dim), "PYT"),
             (PyTorchDNN(input_dim=input_dim), "PYT"),
             (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), "PYT"),
@@ -58,12 +59,11 @@ def main():
             (AdaBoostClassifier(), "sklearn"),
         ],
         shapley_methods=[
-            # "Train_Distri",
-            # "Train_OTMatch",
-            # "CF_UniformMatch",
-            # "CF_RandomMatch",
+            "Train_Distri",
+            "Train_OTMatch",
+            "CF_UniformMatch",
+            "CF_RandomMatch",
             "CF_OTMatch",
-            "CF_ExactMatch",
         ],
         distance_metrics=[
             "optimal_transport",
@@ -71,7 +71,7 @@ def main():
             "median_difference",
             "max_mean_discrepancy",
         ],
-        md_baseline=True,
+        md_baseline=False,
     )
 
     experiment.train_and_evaluate_models(random_state=seed)
@@ -101,27 +101,27 @@ def main():
                     experiment=experiment,
                 )
             except KeyError:
-                logger.info(f"Function {function_name} is not working.")
+                logger.info(f"Function {function_name} is not defined.")
 
-    logger.info("\n\n------Compute Action Policies------")
+    logger.info("\n\n------Compute Shapley Values------")
     experiment.compute_intervention_policies(
         model_counterfactuals=model_counterfactuals,
-        Avalues_method = Avalues_method,
+        Avalues_method=Avalues_method,
     )
 
     logger.info("\n\n------Evaluating Distance Performance Under Interventions------")
     experiment.evaluate_distance_performance_under_interventions(
-        intervention_num_list=range(0,201,5),
+        intervention_num_list=range(0,401,10),
         trials_num=100,
         replace=False,
     )
 
     # plotting.intervention_vs_distance(experiment, save_to_file=False)
 
-    with open(f"pickles/{dataset.name}_experiment_optimality.pickle", "wb") as output_file:
+    with open(f"pickles/{dataset.name}_experiment_max.pickle", "wb") as output_file:
         pickle.dump(experiment, output_file)
 
 
 if __name__ == "__main__":
-    logger.info("German credit analysis started")
+    logger.info("Hotel bookings analysis started")
     main()

@@ -43,11 +43,11 @@ def main():
     Avalues_method = "avg"
 
     counterfactual_algorithms = [
-        'DiCE',
-        'DisCount',
-        # 'GlobeCE',
+        # 'DiCE',
+        # 'DisCount',
+        'GlobeCE',
         # 'AReS',
-        'KNN',
+        # 'KNN',
     ]
 
     experiment = Benchmarking(
@@ -55,14 +55,15 @@ def main():
         models=[
             # (BaggingClassifier(), 'sklearn'), 
             # (GaussianProcessClassifier(),'sklearn'),
-            (XGBClassifier(), 'sklearn'),
-            (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
-            (PyTorchDNN(input_dim=input_dim), 'PYT'),
-            (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
-            (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
-            (RandomForestClassifier(), 'sklearn'), 
-            (GradientBoostingClassifier(), 'sklearn'), 
-            (AdaBoostClassifier(), 'sklearn'), 
+            # (XGBClassifier(), 'sklearn'),
+            # (LGBMClassifier(),'sklearn'),
+            # (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
+            # (PyTorchDNN(input_dim=input_dim), 'PYT'),
+            # (PyTorchRBFNet(input_dim=input_dim, hidden_dim=input_dim), 'PYT'),
+            # (PyTorchLinearSVM(input_dim=input_dim), 'PYT'),
+            # (RandomForestClassifier(), 'sklearn'), 
+            # (GradientBoostingClassifier(), 'sklearn'), 
+            # (AdaBoostClassifier(), 'sklearn'), 
         ],
         shapley_methods=[
             "Train_Distri",
@@ -84,7 +85,7 @@ def main():
     experiment.models_performance()
 
     logger.info("\n\n------Compute Counterfactuals------")
-    sample_num = 100
+    sample_num = 1000
     model_counterfactuals = {}
     for model, model_name in zip(experiment.models, experiment.model_names):
         model_counterfactuals[model_name] = {}
@@ -123,9 +124,9 @@ def main():
 
     # plotting.intervention_vs_distance(experiment, save_to_file=False)
 
-    with open(f"pickles/{dataset.name}_experiment.pickle", "wb") as output_file:
+    with open(f"pickles/{dataset.name}_experiment_GlobeCE.pickle", "wb") as output_file:
         pickle.dump(experiment, output_file)
 
 if __name__ == "__main__":
-    logger.info("Compas analysis started")
+    logger.info("Heloc analysis started")
     main()
