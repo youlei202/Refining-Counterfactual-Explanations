@@ -6,28 +6,30 @@ class TikzPlotGenerator:
     def __init__(self, data):
         self.data = data
         self.colors = [
-            "cyan",
-            "blue",
-            "orange",
-            "green",
+            # "cyan",
+            # "blue",
+            # "orange",
+            # "green",
             "red",
-            "magenta",
-            "yellow",
-            "purple",
-            "brown",
             "black",
+            "black",
+            # "magenta",
+            # "yellow",
+            # "purple",
+            # "brown",
+            # "black",
         ]
         self.line_styles = [
             "solid",
+            "dashed",
             "solid",
-            "solid",
-            "solid",
-            "solid",
-            "solid",
-            "solid",
-            "solid",
-            "solid",
-            "solid",
+            # "solid",
+            # "solid",
+            # "solid",
+            # "solid",
+            # "solid",
+            # "solid",
+            # "solid",
         ]
 
     def compute_statistics(self, y_lists):
@@ -42,15 +44,15 @@ class TikzPlotGenerator:
     def sanitize_name(self, name):
         return labels.mapping[name]
 
-    def generate_plot_code(self, metric, methods):
+    def generate_plot_code(self, metric, methods, corrected_y_lists=None):
         plot_code = """
 \\begin{tikzpicture}
 \\begin{axis}[
     width=4.4cm, height=3.6cm,
-    legend pos=south west,
+    legend pos=north east,
     legend style={
         draw=none,
-        font=\\scriptsize,
+        % font=\\scriptsize,
         legend image code/.code={
             \draw[mark repeat=2,mark phase=2]
                 plot coordinates {
@@ -78,7 +80,11 @@ class TikzPlotGenerator:
             if method in methods and metric in metrics:
                 groups = metrics[metric]
                 x_list = groups[0]["x_list"]
-                y_lists = [group["y_list"] for group in groups]
+
+                if method == "optimality":
+                    y_lists = corrected_y_lists
+                else:
+                    y_lists = [group["y_list"] for group in groups]
 
                 y_mean, y_lower, y_upper = self.compute_statistics(y_lists)
 
@@ -94,6 +100,9 @@ class TikzPlotGenerator:
                     plot_code += f"    ({x}, {y})\n"
                 plot_code += "};\n"
                 plot_code += f"%\\addlegendentry{{{sanitized_method}}}\n"
+
+                if method in ["optimality", "CF_ExactMatch"]:
+                    continue
 
                 plot_code += f"\\addplot[name path={sanitized_method}-{sanitized_metric}-upper, {color}, opacity=0.3, forget plot] coordinates {{\n"
                 for x, y in zip(x_list, y_upper):
