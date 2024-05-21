@@ -39,23 +39,23 @@ def main():
 
     dataset = CompasDataset(dataset_ares=dataset_ares)
     input_dim = dataset.get_dataframe().shape[1] - 1
-    seed = 1
+    seed = 0
     torch.manual_seed(seed)
     Avalues_method = "avg"
 
     counterfactual_algorithms = [
-        'DiCE',
-        'DisCount',
+        # 'DiCE',
+        # 'DisCount',
         # "GlobeCE",
-        # 'AReS',
-        'KNN',
+        'AReS',
+        # 'KNN',
     ]
 
     experiment = Benchmarking(
         dataset=dataset,
         models=[
-            # (BaggingClassifier(), "sklearn"),
-            # (GaussianProcessClassifier(),'sklearn'),
+            (BaggingClassifier(), "sklearn"),
+            (GaussianProcessClassifier(),'sklearn'),
             (XGBClassifier(), 'sklearn'),
             (PyTorchLogisticRegression(input_dim=input_dim), 'PYT'),
             (PyTorchDNN(input_dim=input_dim), 'PYT'),
@@ -85,7 +85,7 @@ def main():
     experiment.models_performance()
 
     logger.info("\n\n------Compute Counterfactuals------")
-    sample_num = 100
+    sample_num = 800
     model_counterfactuals = {}
     for model, model_name in zip(experiment.models, experiment.model_names):
         model_counterfactuals[model_name] = {}

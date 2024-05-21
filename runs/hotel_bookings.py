@@ -35,7 +35,7 @@ def main():
     input_dim = dataset.get_dataframe().shape[1] - 1
     seed = 0
     torch.manual_seed(seed)
-    Avalues_method = "avg"
+    Avalues_method = "max"
 
     counterfactual_algorithms = [
         "DiCE",
