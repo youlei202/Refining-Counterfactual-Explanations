@@ -2,6 +2,9 @@ import shap
 from explainers import pshap
 import ot
 import numpy as np
+from scipy.special import rel_entr
+from explainers.infoot import FusedInfoOT
+
 
 EPSILON = 1e-20
 # SHAP_SAMPLE_SIZE = 10000
@@ -196,6 +199,27 @@ class CounterfactualRandomMatchingPolicy(CounterfactualPolicy):
         return {"varphi": varphi, "p": p, "q": q}
 
 
+class CounterfactualRandomSingleMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def compute_policy(self):
+        p = get_one_one_distribution_matrix(self.N, self.M)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
 class CounterfactualExactMatchingPolicy(CounterfactualPolicy):
     def __init__(self, model, X_factual, X_counterfactual, method="avg"):
         super().__init__(model, X_factual, X_counterfactual)
@@ -239,6 +263,148 @@ class CounterfactualOptimalTransportPolicy(CounterfactualPolicy):
                 numItermax=5000,
             )
         p = convert_matrix_to_policy(probs_matrix)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
+class CounterfactualUnbalancedOptimalTransportPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, reg=0, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.reg = reg
+        self.method = method
+        self.ot_cost = ot.dist(self.X_factual, self.X_counterfactual, p=2)
+
+    def compute_policy(self):
+        probs_matrix = ot.unbalanced.mm_unbalanced(
+            np.ones(self.N) / self.N,
+            np.ones(self.M) / self.M,
+            self.ot_cost,
+            reg_m=5,
+        )
+        p = convert_matrix_to_policy(probs_matrix)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
+class CounterfactualInfomationOptimalTransportPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, reg=0, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.reg = reg
+        self.method = method
+
+    def compute_policy(self):
+        p = FusedInfoOT(
+            Xs=self.X_factual, Xt=self.X_counterfactual, h=0, reg=self.reg
+        ).solve()
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
+class CounterfactualMaximumMutualInformationPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def compute_joint_prob_matrix_with_max_mi(self, max_iter=1000, tol=1e-6):
+        N = self.X_factual.shape[0]
+        M = self.X_counterfactual.shape[0]
+
+        # Initialize uniform marginal probabilities
+        p_factual = np.ones(N) / N
+        p_counterfactual = np.ones(M) / M
+
+        # Initialize the joint probability matrix
+        joint_prob_matrix = np.outer(p_factual, p_counterfactual)
+
+        for _ in range(max_iter):
+            # Compute the conditional probability p(X_counterfactual | X_factual)
+            cond_prob_matrix = joint_prob_matrix / np.sum(
+                joint_prob_matrix, axis=1, keepdims=True
+            )
+            # Compute new joint probability matrix
+            new_joint_prob_matrix = np.outer(p_factual, p_counterfactual) * np.exp(
+                cond_prob_matrix
+            )
+            new_joint_prob_matrix /= np.sum(new_joint_prob_matrix)
+
+            # Check for convergence
+            if np.linalg.norm(new_joint_prob_matrix - joint_prob_matrix) < tol:
+                break
+
+            joint_prob_matrix = new_joint_prob_matrix
+
+        return joint_prob_matrix
+
+    def compute_policy(self):
+        joint_prob_matrix = self.compute_joint_prob_matrix_with_max_mi()
+
+        p = convert_matrix_to_policy(joint_prob_matrix)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
+class CounterfactualMinimumMutualInformationPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def compute_joint_prob_matrix_with_min_mi(self):
+        N = self.X_factual.shape[0]
+        M = self.X_counterfactual.shape[0]
+
+        # Initialize uniform marginal probabilities
+        p_factual = np.ones(N) / N
+        p_counterfactual = np.ones(M) / M
+
+        # Compute the joint probability matrix that minimizes mutual information
+        joint_prob_matrix = np.outer(p_factual, p_counterfactual)
+
+        return joint_prob_matrix
+
+    def compute_policy(self):
+        joint_prob_matrix = self.compute_joint_prob_matrix_with_min_mi()
+
+        p = convert_matrix_to_policy(joint_prob_matrix)
 
         shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
             self.X_factual,
@@ -298,6 +464,27 @@ def compute_intervention_policy(
             X_counterfactual=X_counterfactual,
             method=Avalues_method,
         ).compute_policy()
+    elif shapley_method == "CF_RandomSingleMatch":
+        return CounterfactualRandomSingleMatchingPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
+    elif shapley_method == "CF_MaximumMutualInformation":
+        return CounterfactualMaximumMutualInformationPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
+    elif shapley_method == "CF_MinimumMutualInformation":
+        return CounterfactualMinimumMutualInformationPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
     else:
         shapley_method_string_list = shapley_method.split("_")
         entropic_ot = can_convert_to_float(shapley_method_string_list[-1])
@@ -307,6 +494,22 @@ def compute_intervention_policy(
         else:
             reg = 0
         if shapley_method == "CF_OTMatch":
+            return CounterfactualOptimalTransportPolicy(
+                model=model,
+                X_factual=X_factual,
+                X_counterfactual=X_counterfactual,
+                reg=reg,
+                method=Avalues_method,
+            ).compute_policy()
+        elif shapley_method == "CF_UBOTMatch":
+            return CounterfactualUnbalancedOptimalTransportPolicy(
+                model=model,
+                X_factual=X_factual,
+                X_counterfactual=X_counterfactual,
+                reg=reg,
+                method=Avalues_method,
+            ).compute_policy()
+        elif shapley_method == "CF_InfoOTMatch":
             return CounterfactualOptimalTransportPolicy(
                 model=model,
                 X_factual=X_factual,
