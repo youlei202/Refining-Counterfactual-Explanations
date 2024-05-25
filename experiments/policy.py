@@ -4,6 +4,7 @@ import ot
 import numpy as np
 from scipy.special import rel_entr
 from explainers.infoot import FusedInfoOT
+from sklearn.preprocessing import KBinsDiscretizer
 
 
 EPSILON = 1e-20
@@ -419,6 +420,48 @@ class CounterfactualMinimumMutualInformationPolicy(CounterfactualPolicy):
         return {"varphi": varphi, "p": p, "q": q}
 
 
+class CounterfactualCoarsenedExactMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, n_bins=5, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.n_bins = n_bins
+        self.method = method
+
+    def _compute_cem_prob_matrix(self, x, r):
+        # Coarsen the data into bins
+        discretizer = KBinsDiscretizer(
+            n_bins=self.n_bins, encode="ordinal", strategy="uniform"
+        )
+        x_binned = discretizer.fit_transform(x)
+        r_binned = discretizer.transform(r)
+
+        # Initialize the probability matrix
+        prob_matrix = np.zeros((x.shape[0], r.shape[0]))
+
+        # Compute the matching probabilities
+        for i, r_bin in enumerate(r_binned):
+            matches = np.all(x_binned == r_bin, axis=1)
+            matched_indices = np.where(matches)[0]
+            if len(matched_indices) > 0:
+                prob_matrix[matched_indices, i] = 1.0 / len(matched_indices)
+
+        return prob_matrix
+
+    def compute_policy(self):
+        p = self._compute_cem_prob_matrix(self.X_factual, self.X_counterfactual)
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual,
+            self.X_counterfactual,
+            joint_probs=p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": p, "q": q}
+
+
 def compute_intervention_policy(
     model,
     X_train,
@@ -480,6 +523,13 @@ def compute_intervention_policy(
         ).compute_policy()
     elif shapley_method == "CF_MinimumMutualInformation":
         return CounterfactualMinimumMutualInformationPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
+    elif shapley_method == "CF_CEMMatch":
+        return CounterfactualCoarsenedExactMatchingPolicy(
             model=model,
             X_factual=X_factual,
             X_counterfactual=X_counterfactual,
