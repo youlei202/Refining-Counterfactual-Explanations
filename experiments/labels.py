@@ -7,6 +7,7 @@ mapping = {
     "CF_RandomMatch": "CF-Rnd",
     "CF_MaximumMutualInformation": "CF-MaxMI",
     "CF_MinimumMutualInformation": "CF-MinMI",
+    "CF_CEMMatch": "CF-CEM",
     "CF_OTMatch": "CF-OT",
     "CF_UBOTMatch": "CF-UBOT",
     "CF_InfoOTMatch": "CF-InfoOT",
