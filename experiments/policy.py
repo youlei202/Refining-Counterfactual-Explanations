@@ -5,7 +5,10 @@ import numpy as np
 from scipy.special import rel_entr
 from explainers.infoot import FusedInfoOT
 from sklearn.preprocessing import KBinsDiscretizer
-
+from sklearn.linear_model import LogisticRegression
+from cem import CEM
+import pandas as pd
+from sklearn.neighbors import NearestNeighbors
 
 EPSILON = 1e-20
 # SHAP_SAMPLE_SIZE = 10000
@@ -307,6 +310,67 @@ class CounterfactualUnbalancedOptimalTransportPolicy(CounterfactualPolicy):
         return {"varphi": varphi, "p": p, "q": q}
 
 
+class CounterfactualCausalOptimalTransportPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def _compute_propensity_scores(self, x, r):
+        # Combine the factual and counterfactual data
+        combined_data = np.vstack((x, r))
+        treatment_indicator = np.hstack((np.zeros(x.shape[0]), np.ones(r.shape[0])))
+
+        # Fit a logistic regression model to estimate propensity scores
+        model = LogisticRegression()
+        model.fit(combined_data, treatment_indicator)
+        propensity_scores = model.predict_proba(combined_data)[:, 1]
+
+        return propensity_scores[: x.shape[0]], propensity_scores[x.shape[0] :]
+
+    def _compute_causal_ot_prob_matrix(self, x, r):
+        # Compute the cost matrix (e.g., Euclidean distance plus propensity score difference)
+        propensity_scores_x, propensity_scores_r = self._compute_propensity_scores(x, r)
+        cost_matrix = ot.dist(x, r, metric="euclidean")
+
+        # Add causal component to the cost matrix
+        for i in range(x.shape[0]):
+            for j in range(r.shape[0]):
+                cost_matrix[i, j] += np.abs(
+                    propensity_scores_x[i] - propensity_scores_r[j]
+                )
+
+        # Uniform distribution over the rows of x and r
+        a = np.ones(x.shape[0]) / x.shape[0]
+        b = np.ones(r.shape[0]) / r.shape[0]
+
+        # Compute the optimal transport plan
+        transport_plan = ot.emd(a, b, cost_matrix)
+
+        # The transport plan is the probability matrix
+        prob_matrix = transport_plan
+
+        return prob_matrix
+
+    def compute_policy(self):
+        p = self._compute_causal_ot_prob_matrix(self.X_factual, self.X_counterfactual)
+
+        # Remove rows in p that sum to zero (unmatched rows in x)
+        row_sums = p.sum(axis=1)
+        matched_p = p[row_sums > 0, :]
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual[row_sums > 0, :],
+            self.X_counterfactual,
+            joint_probs=matched_p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=matched_p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": matched_p, "q": q}
+
+
 class CounterfactualInfomationOptimalTransportPolicy(CounterfactualPolicy):
     def __init__(self, model, X_factual, X_counterfactual, reg=0, method="avg"):
         super().__init__(model, X_factual, X_counterfactual)
@@ -421,7 +485,7 @@ class CounterfactualMinimumMutualInformationPolicy(CounterfactualPolicy):
 
 
 class CounterfactualCoarsenedExactMatchingPolicy(CounterfactualPolicy):
-    def __init__(self, model, X_factual, X_counterfactual, n_bins=5, method="avg"):
+    def __init__(self, model, X_factual, X_counterfactual, n_bins=20, method="avg"):
         super().__init__(model, X_factual, X_counterfactual)
         self.n_bins = n_bins
         self.method = method
@@ -461,6 +525,131 @@ class CounterfactualCoarsenedExactMatchingPolicy(CounterfactualPolicy):
 
         return {"varphi": varphi, "p": p, "q": q}
 
+
+class CounterfactualCoarsenedExactMatchingOTPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, n_bins=5, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.n_bins = n_bins
+        self.method = method
+
+    def _compute_cem_prob_matrix(self, x, r):
+        # Combine the factual and counterfactual data
+        combined_data = np.vstack((x, r))
+        treatment_indicator = np.hstack((np.zeros(x.shape[0]), np.ones(r.shape[0])))
+
+        # Perform Coarsened Exact Matching
+        df = pd.DataFrame(combined_data)
+        df["treatment"] = treatment_indicator
+        cem_result = CEM(df, "treatment", drop="drop", cut=self.n_bins)
+        matched_groups = cem_result["matched"]
+
+        # Initialize the probability matrix
+        prob_matrix = np.zeros((x.shape[0], r.shape[0]))
+
+        # Fill the probability matrix based on matching results
+        for group in matched_groups:
+            x_indices = [idx for idx in group if idx < x.shape[0]]
+            r_indices = [idx - x.shape[0] for idx in group if idx >= x.shape[0]]
+            if x_indices and r_indices:
+                prob = 1.0 / len(x_indices)
+                for x_idx in x_indices:
+                    for r_idx in r_indices:
+                        prob_matrix[x_idx, r_idx] = prob
+
+        return prob_matrix
+
+    def _compute_ot_for_unmatched(self, x, r, prob_matrix):
+        # Identify unmatched rows in x
+        row_sums = prob_matrix.sum(axis=1)
+        unmatched_x_indices = np.where(row_sums == 0)[0]
+
+        if len(unmatched_x_indices) == 0:
+            return prob_matrix
+
+        # Compute the cost matrix for unmatched rows
+        cost_matrix = ot.dist(x[unmatched_x_indices], r, metric="euclidean")
+
+        # Uniform distribution over the unmatched rows of x and all rows of r
+        a = np.ones(len(unmatched_x_indices)) / len(unmatched_x_indices)
+        b = np.ones(r.shape[0]) / r.shape[0]
+
+        # Compute the optimal transport plan
+        transport_plan = ot.emd(a, b, cost_matrix)
+
+        # Update the probability matrix with the OT results for unmatched rows
+        for i, x_idx in enumerate(unmatched_x_indices):
+            for j, r_idx in enumerate(range(r.shape[0])):
+                prob_matrix[x_idx, r_idx] = transport_plan[i, j]
+
+        return prob_matrix
+
+    def compute_policy(self):
+        # Compute initial probability matrix using CEM
+        p = self._compute_cem_prob_matrix(self.X_factual, self.X_counterfactual)
+
+        # Ensure all rows in x are matched using OT for unmatched rows
+        p = self._compute_ot_for_unmatched(self.X_factual, self.X_counterfactual, p)
+
+        # Remove rows in p that sum to zero (shouldn't be any after OT adjustment)
+        row_sums = p.sum(axis=1)
+        matched_p = p[row_sums > 0, :]
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual[row_sums > 0, :],
+            self.X_counterfactual,
+            joint_probs=matched_p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=matched_p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": matched_p, "q": q}
+
+
+class CounterfactualNearestNeighborMatchingPolicy(CounterfactualPolicy):
+    def __init__(self, model, X_factual, X_counterfactual, method="avg"):
+        super().__init__(model, X_factual, X_counterfactual)
+        self.method = method
+
+    def _compute_nn_prob_matrix(self, x, r):
+        # Fit nearest neighbors model on the counterfactual data
+        nn = NearestNeighbors(n_neighbors=1)
+        nn.fit(r)
+
+        # Find the nearest neighbors in r for each row in x
+        distances, indices = nn.kneighbors(x)
+        
+        # Initialize the probability matrix
+        prob_matrix = np.zeros((x.shape[0], r.shape[0]))
+        
+        # Fill the probability matrix based on nearest neighbors
+        for i, neighbor_index in enumerate(indices.flatten()):
+            prob_matrix[i, neighbor_index] = 1.0
+        
+        return prob_matrix
+
+    def compute_policy(self):
+        # Compute initial probability matrix using nearest neighbors
+        p = self._compute_nn_prob_matrix(self.X_factual, self.X_counterfactual)
+
+        # Optionally, you can also use OT to refine this further, but this example sticks to NN only
+        # Remove rows in p that sum to zero (shouldn't be any if NN is used correctly)
+        row_sums = p.sum(axis=1)
+        matched_p = p[row_sums > 0, :]
+
+        shap_values = pshap.JointProbabilityExplainer(self.model).shap_values(
+            self.X_factual[row_sums > 0, :],
+            self.X_counterfactual,
+            joint_probs=matched_p,
+            shap_sample_size=SHAP_SAMPLE_SIZE,
+        )
+
+        varphi = convert_matrix_to_policy(shap_values)
+        q = A_values(W=matched_p, R=self.X_counterfactual, method=self.method)
+
+        return {"varphi": varphi, "p": matched_p, "q": q}
+    
 
 def compute_intervention_policy(
     model,
@@ -535,6 +724,20 @@ def compute_intervention_policy(
             X_counterfactual=X_counterfactual,
             method=Avalues_method,
         ).compute_policy()
+    elif shapley_method == "CF_CEMOTMatch":
+        return CounterfactualCoarsenedExactMatchingOTPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
+    elif shapley_method == "CF_NNMatch":
+        return CounterfactualNearestNeighborMatchingPolicy(
+            model=model,
+            X_factual=X_factual,
+            X_counterfactual=X_counterfactual,
+            method=Avalues_method,
+        ).compute_policy()
     else:
         shapley_method_string_list = shapley_method.split("_")
         entropic_ot = can_convert_to_float(shapley_method_string_list[-1])
@@ -565,6 +768,13 @@ def compute_intervention_policy(
                 X_factual=X_factual,
                 X_counterfactual=X_counterfactual,
                 reg=reg,
+                method=Avalues_method,
+            ).compute_policy()
+        elif shapley_method == "CF_CausalOTMatch":
+            return CounterfactualCausalOptimalTransportPolicy(
+                model=model,
+                X_factual=X_factual,
+                X_counterfactual=X_counterfactual,
                 method=Avalues_method,
             ).compute_policy()
         else:
