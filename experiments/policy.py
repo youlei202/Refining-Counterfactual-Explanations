@@ -15,6 +15,29 @@ EPSILON = 1e-20
 SHAP_SAMPLE_SIZE = "auto"
 
 
+def difference_mask(arr1, arr2, atol=1e-8, rtol=1e-5):
+    # Ensure both inputs are NumPy arrays
+    arr1 = np.asarray(arr1)
+    arr2 = np.asarray(arr2)
+
+    # Check if shapes are the same
+    if arr1.shape != arr2.shape:
+        raise ValueError(
+            f"Shape mismatch: arr1.shape = {arr1.shape}, arr2.shape = {arr2.shape}"
+        )
+
+    # Use numpy.isclose to compare arrays element-wise
+    close = np.isclose(arr1, arr2, atol=atol, rtol=rtol)
+
+    # Invert the boolean array: True where elements differ beyond tolerance
+    differences = ~close
+
+    # Convert boolean array to integer (0 and 1)
+    binary_mask = differences.astype(int)
+
+    return binary_mask
+
+
 def COLA(X_factual, varphi, q, C, replace):
     action_indice = np.random.choice(
         a=varphi.size,
@@ -65,6 +88,7 @@ class Policy:
         self.X_factual = X_factual
         self.X_counterfactual = X_counterfactual
         self.N, self.M = self.X_factual.shape[0], self.X_counterfactual.shape[0]
+        self.diff_mask = difference_mask(X_factual, X_counterfactual)
 
 
 class CounterfactualPolicy(Policy):
@@ -95,7 +119,7 @@ class TrainUniformDistributionPolicy(TrainsetPolicy):
             self.model.predict_proba, self.X_train_sampled
         ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -134,7 +158,7 @@ class TrainOptimalTransportPolicy(TrainsetPolicy):
             self.model.predict_proba, self.X_train_sampled
         ).shap_values(self.X_factual, nsamples=SHAP_SAMPLE_SIZE)
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -155,7 +179,7 @@ class CounterfactualUniformDistributionPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -176,7 +200,7 @@ class CounterfactualSingleMatchingPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -197,7 +221,7 @@ class CounterfactualRandomMatchingPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -218,7 +242,7 @@ class CounterfactualRandomSingleMatchingPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -240,7 +264,7 @@ class CounterfactualExactMatchingPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -275,7 +299,7 @@ class CounterfactualOptimalTransportPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -304,7 +328,7 @@ class CounterfactualUnbalancedOptimalTransportPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -365,7 +389,7 @@ class CounterfactualCausalOptimalTransportPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=matched_p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": matched_p, "q": q}
@@ -389,7 +413,7 @@ class CounterfactualInfomationOptimalTransportPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -442,7 +466,7 @@ class CounterfactualMaximumMutualInformationPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -478,7 +502,7 @@ class CounterfactualMinimumMutualInformationPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -520,7 +544,7 @@ class CounterfactualCoarsenedExactMatchingPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": p, "q": q}
@@ -601,7 +625,7 @@ class CounterfactualCoarsenedExactMatchingOTPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=matched_p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": matched_p, "q": q}
@@ -619,14 +643,14 @@ class CounterfactualNearestNeighborMatchingPolicy(CounterfactualPolicy):
 
         # Find the nearest neighbors in r for each row in x
         distances, indices = nn.kneighbors(x)
-        
+
         # Initialize the probability matrix
         prob_matrix = np.zeros((x.shape[0], r.shape[0]))
-        
+
         # Fill the probability matrix based on nearest neighbors
         for i, neighbor_index in enumerate(indices.flatten()):
             prob_matrix[i, neighbor_index] = 1.0
-        
+
         return prob_matrix
 
     def compute_policy(self):
@@ -645,11 +669,11 @@ class CounterfactualNearestNeighborMatchingPolicy(CounterfactualPolicy):
             shap_sample_size=SHAP_SAMPLE_SIZE,
         )
 
-        varphi = convert_matrix_to_policy(shap_values)
+        varphi = convert_matrix_to_policy_with_mask(shap_values, self.diff_mask)
         q = A_values(W=matched_p, R=self.X_counterfactual, method=self.method)
 
         return {"varphi": varphi, "p": matched_p, "q": q}
-    
+
 
 def compute_intervention_policy(
     model,
@@ -813,6 +837,14 @@ def get_random_distribution_matrix(N, M):
 
 def convert_matrix_to_policy(matrix):
     P = np.abs(matrix) / np.abs(matrix).sum()
+    P += EPSILON
+    P /= P.sum()
+    return P
+
+
+def convert_matrix_to_policy_with_mask(matrix, diff_mask):
+    P = np.abs(matrix) / np.abs(matrix).sum()
+    P *= diff_mask
     P += EPSILON
     P /= P.sum()
     return P
