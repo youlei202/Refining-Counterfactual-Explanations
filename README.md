@@ -1,4 +1,4 @@
-# Contrastive Feature Attribution Experiments
+# Refining Counterfactual Explanations
 
 This repository contains the experiment code that accompanies the preprint\
 *L. You ✉, Y. Bian, and L. Cao, "Refining Counterfactual Explanations With Joint-Distribution-Informed Shapley Towards Actionable Minimality", preprint*.\
