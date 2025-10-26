@@ -66,7 +66,7 @@ If you build on this codebase, please cite the accompanying preprint:
 ```
 
 ## Related Software
-- **COLA: Counterfactual Linear Assignment** – <https://github.com/understanding-ml/COLA>. This standalone package provides the production version of the COLA policy optimisation routine referenced throughout `experiments/policy.py`.
+- **COLA: COunterfactual explanations with Limited Actions** – <https://github.com/understanding-ml/COLA>. This standalone package provides the production version of the COLA policy optimisation routine referenced throughout `experiments/policy.py`.
 - The counterfactual baselines draw on implementations from AReS, GLOBE-CE, DiCE, DisCount, and related repositories; please consult their respective licences when extending this work.
 
 ## License & Acknowledgements
